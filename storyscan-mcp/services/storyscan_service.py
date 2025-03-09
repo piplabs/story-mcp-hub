@@ -227,16 +227,18 @@ class StoryscanService:
             logger.error(f"Error in get_token_holdings: {str(e)}")
             raise Exception(f"Failed to get token holdings: {str(e)}")
 
-    def get_nft_holdings(self, address: str) -> NFTCollectionsResponse:
+    def get_nft_holdings(self, address: str) -> dict:
         """Get NFT holdings for an address."""
         try:
-            # Note: The endpoint might be different based on the API docs
-            # Using the same endpoint as in the TypeScript version
-            data = self._make_api_request(f"addresses/{address}/collectibles")
-            return NFTCollectionsResponse(
-                items=data["items"],
-                next_page_params=data.get("next_page_params")
-            )
+            # Using the correct endpoint with type parameters
+            data = self._make_api_request(f"addresses/{address}/nft", 
+                                         params={"type": "ERC-721,ERC-404,ERC-1155"})
+            
+            # Log the successful response for debugging
+            logger.info(f"Successfully retrieved NFT holdings for {address}")
+            
+            # Simply return the raw API response as the structure matches what we need
+            return data
         except Exception as e:
             logger.error(f"Error in get_nft_holdings: {str(e)}")
             raise Exception(f"Failed to get NFT holdings: {str(e)}")

@@ -118,23 +118,44 @@ def get_nft_holdings(address: str):
     """Get all NFT holdings for an address, including collection information and
     individual token metadata. Remember its an EVM chain but the token is $IP"""
     try:
-        collections = story_service.get_nft_holdings(address)
+        # Use the correct endpoint with type parameters
+        nft_holdings = story_service.get_nft_holdings(address)
         
-        if not collections["items"]:
+        if not nft_holdings["items"]:
             return f"No NFT holdings found for {address}"
         
-        formatted_collections = []
-        for collection in collections["items"]:
-            token = collection["token"]
-            formatted_collection = (
+        formatted_holdings = []
+        for nft in nft_holdings["items"]:
+            token = nft["token"]
+            formatted_holding = (
                 f"Collection: {token['name']} ({token['symbol']})\n"
-                f"Amount: {collection['amount']}\n"
-                f"Token Type: {token['type']}\n"
-                f"---"
+                f"Token ID: {nft['id']}\n"
+                f"Token Type: {nft['token_type']}\n"
             )
-            formatted_collections.append(formatted_collection)
+            
+            # Add image URL if available
+            if nft['image_url']:
+                formatted_holding += f"Image: {nft['image_url']}\n"
+                
+            # Add external URL if available
+            if nft['external_app_url']:
+                formatted_holding += f"External URL: {nft['external_app_url']}\n"
+                
+            # Add metadata summary if available
+            if nft['metadata'] and isinstance(nft['metadata'], dict):
+                if 'name' in nft['metadata']:
+                    formatted_holding += f"Name: {nft['metadata']['name']}\n"
+                if 'description' in nft['metadata'] and nft['metadata']['description']:
+                    desc = nft['metadata']['description']
+                    # Truncate long descriptions
+                    if len(desc) > 100:
+                        desc = desc[:97] + "..."
+                    formatted_holding += f"Description: {desc}\n"
+            
+            formatted_holding += "---\n"
+            formatted_holdings.append(formatted_holding)
         
-        return f"NFT holdings for {address}:\n\n" + "\n".join(formatted_collections)
+        return f"NFT holdings for {address}:\n\n" + "\n".join(formatted_holdings)
     except Exception as e:
         return f"Error getting NFT holdings: {str(e)}"
 
