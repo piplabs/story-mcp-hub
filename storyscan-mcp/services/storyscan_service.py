@@ -2,7 +2,15 @@ import os
 import requests
 import urllib3
 import logging
+import sys
+from pathlib import Path
 from typing import TypedDict, List, Optional, Dict, Any
+
+# Add the parent directory to the Python path so we can import utils
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
+# Now import the gas utilities with the correct path
+from utils.gas_utils import format_gas_prices, wei_to_gwei, gwei_to_eth, calculate_transaction_fee
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, filename='storyscan_service.log', filemode='a',
@@ -29,7 +37,9 @@ class BlockchainStats(TypedDict):
     network_utilization_percentage: float
     gas_prices: GasPrices
     gas_used_today: str
+    gas_used_today_formatted: str
     total_gas_used: str
+    total_gas_used_formatted: str
     gas_price_updated_at: str
     gas_prices_update_in: int
     static_gas_price: Optional[str]
@@ -139,6 +149,23 @@ class StoryscanService:
             logger.error(f"Error making request to {url}: {e}")
             raise Exception(f"API request failed: {str(e)}")
 
+    def _format_gas_amount(self, gas_amount: str) -> str:
+        """Format large gas amounts to be more readable with units."""
+        try:
+            amount = int(gas_amount)
+            if amount >= 1_000_000_000_000:  # Trillions
+                return f"{amount / 1_000_000_000_000:.2f} T gas"
+            elif amount >= 1_000_000_000:  # Billions
+                return f"{amount / 1_000_000_000:.2f} B gas"
+            elif amount >= 1_000_000:  # Millions
+                return f"{amount / 1_000_000:.2f} M gas"
+            elif amount >= 1_000:  # Thousands
+                return f"{amount / 1_000:.2f} K gas"
+            else:
+                return f"{amount} gas"
+        except (ValueError, TypeError):
+            return gas_amount  # Return original if conversion fails
+
     def get_address_balance(self, address: str) -> dict:
         """Get the balance of an address."""
         try:
@@ -156,16 +183,27 @@ class StoryscanService:
         try:
             data = self._make_api_request(f"addresses/{address}/transactions")
             transactions = data["items"][:limit]
-            return [{
-                "hash": tx["hash"],
-                "from_": tx["from"],
-                "to": tx["to"],
-                "value": tx["value"],
-                "timestamp": tx["timestamp"],
-                "block_number": tx["block_number"],
-                "fee": tx["fee"],
-                "status": tx["status"]
-            } for tx in transactions]
+            
+            result = []
+            for tx in transactions:
+                # Calculate gas fee in different units
+                if 'gas_price' in tx and 'gas_used' in tx:
+                    gas_fee = calculate_transaction_fee(tx['gas_price'], tx['gas_used'])
+                else:
+                    gas_fee = tx.get('fee', {})
+                
+                result.append({
+                    "hash": tx["hash"],
+                    "from_": tx["from"],
+                    "to": tx["to"],
+                    "value": tx["value"],
+                    "timestamp": tx["timestamp"],
+                    "block_number": tx["block_number"],
+                    "fee": gas_fee,
+                    "status": tx["status"]
+                })
+            
+            return result
         except Exception as e:
             logger.error(f"Error in get_transaction_history: {str(e)}")
             raise Exception(f"Failed to get transaction history: {str(e)}")
@@ -174,6 +212,26 @@ class StoryscanService:
         """Get blockchain statistics."""
         try:
             data = self._make_api_request("stats")
+            
+            # Convert gas prices from wei to gwei for better readability
+            if 'gas_prices' in data and data['gas_prices']:
+                # Format gas prices to gwei (assuming they're in wei from the API)
+                data['gas_prices'] = format_gas_prices(data['gas_prices'], to_unit='gwei')
+                
+                # Add eth values for convenience
+                data['gas_prices_eth'] = {
+                    'slow': gwei_to_eth(data['gas_prices']['slow']),
+                    'average': gwei_to_eth(data['gas_prices']['average']),
+                    'fast': gwei_to_eth(data['gas_prices']['fast'])
+                }
+            
+            # Format gas used values for better readability
+            if 'gas_used_today' in data:
+                data['gas_used_today_formatted'] = self._format_gas_amount(data['gas_used_today'])
+            
+            if 'total_gas_used' in data:
+                data['total_gas_used_formatted'] = self._format_gas_amount(data['total_gas_used'])
+            
             return BlockchainStats(
                 total_blocks=data["total_blocks"],
                 total_addresses=data["total_addresses"],
@@ -185,7 +243,9 @@ class StoryscanService:
                 network_utilization_percentage=data["network_utilization_percentage"],
                 gas_prices=data["gas_prices"],
                 gas_used_today=data["gas_used_today"],
+                gas_used_today_formatted=data.get("gas_used_today_formatted", ""),
                 total_gas_used=data["total_gas_used"],
+                total_gas_used_formatted=data.get("total_gas_used_formatted", ""),
                 gas_price_updated_at=data["gas_price_updated_at"],
                 gas_prices_update_in=data["gas_prices_update_in"],
                 static_gas_price=data["static_gas_price"]
