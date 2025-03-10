@@ -179,6 +179,8 @@ Cursor implements an MCP client that supports an arbitrary number of MCP servers
    - Enter either the command to run or the URL of the server, depending on the transport
    - We'll use the `uv` command to run the server, so make sure to include the `--directory` flag with the path to the server (Example: `uv --directory ~/path/to/story-mcp-hub/storyscan-mcp run server.py`)
 
+![Screenshot 2025-03-10 at 2 50 48 PM](https://github.com/user-attachments/assets/a2f1e624-3f13-4eb7-b16b-b347cea8b339)
+
 #### Project-Specific MCP Configuration
 
 You can configure project-specific MCP servers using `.cursor/mcp.json`. The file follows this format:
@@ -254,6 +256,8 @@ code ~/Library/Application\ Support/Claude/claude_desktop_config.json
 ```
 
 3. Save the file and restart Claude Desktop for the changes to take effect.
+
+![Screenshot 2025-03-10 at 2 57 24 PM](https://github.com/user-attachments/assets/6901e488-09a7-452a-b1cd-17aa525cac2a)
 
 Example query: `use storyscan to check balance of 0x95A13F457C76d10A40D7e8497eD4F40c53F4d04b`
 
