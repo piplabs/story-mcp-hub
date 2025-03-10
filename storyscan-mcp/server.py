@@ -60,14 +60,48 @@ def get_stats():
     """Get current blockchain statistics. Remember its an EVM chain but the token is $IP"""
     try:
         stats = story_service.get_blockchain_stats()
-        return (
-            f"Blockchain Statistics:\n"
-            f"Total Blocks: {stats['total_blocks']}\n"
-            f"Average Block Time: {stats['average_block_time']}\n"
-            f"Total Transactions: {stats['total_transactions']}\n"
-            f"Total Addresses: {stats['total_addresses']}\n"
-            f"Current Gas Price: {stats['gas_prices']['average']} IP"
-        )
+        # Convert average block time from milliseconds to seconds
+        block_time_seconds = float(stats['average_block_time']) / 1000
+        
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"Blockchain Statistics:\n"
+                           f"Total Blocks: {stats['total_blocks']}\n"
+                           f"Average Block Time: {block_time_seconds} seconds\n"
+                           f"Total Transactions: {stats['total_transactions']}\n"
+                           f"Total Addresses: {stats['total_addresses']}\n"
+                           f"Current Gas Price: {stats['gas_prices']['average']} IP\n"
+                           f"Gas Used Today: {stats['gas_used_today_formatted']}\n"
+                           f"Total Gas Used: {stats['total_gas_used_formatted']}\n"
+                           f"Network Utilization: {stats['network_utilization_percentage']}%"
+                }
+            ],
+            "raw_data": {
+                "average_block_time": stats['average_block_time'],
+                "coin_image": stats.get('coin_image'),
+                "coin_price": stats.get('coin_price'),
+                "coin_price_change_percentage": stats.get('coin_price_change_percentage'),
+                "gas_price_updated_at": stats.get('gas_price_updated_at'),
+                "gas_prices": stats.get('gas_prices'),
+                "gas_prices_update_in": stats.get('gas_prices_update_in'),
+                "gas_used_today": stats.get('gas_used_today'),
+                "gas_used_today_formatted": stats.get('gas_used_today_formatted'),
+                "market_cap": stats.get('market_cap'),
+                "network_utilization_percentage": stats.get('network_utilization_percentage'),
+                "secondary_coin_image": stats.get('secondary_coin_image'),
+                "secondary_coin_price": stats.get('secondary_coin_price'),
+                "static_gas_price": stats.get('static_gas_price'),
+                "total_addresses": stats.get('total_addresses'),
+                "total_blocks": stats.get('total_blocks'),
+                "total_gas_used": stats.get('total_gas_used'),
+                "total_gas_used_formatted": stats.get('total_gas_used_formatted'),
+                "total_transactions": stats.get('total_transactions'),
+                "transactions_today": stats.get('transactions_today'),
+                "tvl": stats.get('tvl')
+            }
+        }
     except Exception as e:
         return f"Error getting blockchain stats: {str(e)}"
 
@@ -118,23 +152,44 @@ def get_nft_holdings(address: str):
     """Get all NFT holdings for an address, including collection information and
     individual token metadata. Remember its an EVM chain but the token is $IP"""
     try:
-        collections = story_service.get_nft_holdings(address)
+        # Use the correct endpoint with type parameters
+        nft_holdings = story_service.get_nft_holdings(address)
         
-        if not collections["items"]:
+        if not nft_holdings["items"]:
             return f"No NFT holdings found for {address}"
         
-        formatted_collections = []
-        for collection in collections["items"]:
-            token = collection["token"]
-            formatted_collection = (
+        formatted_holdings = []
+        for nft in nft_holdings["items"]:
+            token = nft["token"]
+            formatted_holding = (
                 f"Collection: {token['name']} ({token['symbol']})\n"
-                f"Amount: {collection['amount']}\n"
-                f"Token Type: {token['type']}\n"
-                f"---"
+                f"Token ID: {nft['id']}\n"
+                f"Token Type: {nft['token_type']}\n"
             )
-            formatted_collections.append(formatted_collection)
+            
+            # Add image URL if available
+            if nft['image_url']:
+                formatted_holding += f"Image: {nft['image_url']}\n"
+                
+            # Add external URL if available
+            if nft['external_app_url']:
+                formatted_holding += f"External URL: {nft['external_app_url']}\n"
+                
+            # Add metadata summary if available
+            if nft['metadata'] and isinstance(nft['metadata'], dict):
+                if 'name' in nft['metadata']:
+                    formatted_holding += f"Name: {nft['metadata']['name']}\n"
+                if 'description' in nft['metadata'] and nft['metadata']['description']:
+                    desc = nft['metadata']['description']
+                    # Truncate long descriptions
+                    if len(desc) > 100:
+                        desc = desc[:97] + "..."
+                    formatted_holding += f"Description: {desc}\n"
+            
+            formatted_holding += "---\n"
+            formatted_holdings.append(formatted_holding)
         
-        return f"NFT holdings for {address}:\n\n" + "\n".join(formatted_collections)
+        return f"NFT holdings for {address}:\n\n" + "\n".join(formatted_holdings)
     except Exception as e:
         return f"Error getting NFT holdings: {str(e)}"
 
