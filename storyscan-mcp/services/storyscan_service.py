@@ -10,7 +10,7 @@ from typing import TypedDict, List, Optional, Dict, Any
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 # Now import the gas utilities with the correct path
-from utils.gas_utils import format_gas_prices, wei_to_gwei, gwei_to_eth, calculate_transaction_fee
+from utils.gas_utils import format_gas_prices, wei_to_gwei, gwei_to_eth, calculate_transaction_fee, format_token_balance
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, filename='storyscan_service.log', filemode='a',
@@ -78,6 +78,7 @@ class TokenInfo(TypedDict):
 class AddressOverview(TypedDict):
     hash: str
     coin_balance: str
+    raw_coin_balance: str
     is_contract: bool
     token: Optional[TokenInfo]
     has_tokens: bool
@@ -258,9 +259,15 @@ class StoryscanService:
         """Get a comprehensive overview of an address including balances and token info."""
         try:
             data = self._make_api_request(f"addresses/{address}")
+            
+            # Format the coin balance from wei to a human-readable value
+            raw_balance = data["coin_balance"]
+            formatted_balance = format_token_balance(raw_balance)
+            
             return AddressOverview(
                 hash=data["hash"],
-                coin_balance=data["coin_balance"],
+                coin_balance=formatted_balance,  # Use the formatted balance
+                raw_coin_balance=raw_balance,    # Keep the raw balance for reference
                 is_contract=data["is_contract"],
                 token=data.get("token"),
                 has_tokens=data["has_tokens"],

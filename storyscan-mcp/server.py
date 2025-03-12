@@ -111,13 +111,56 @@ def get_address_overview(address: str):
     and various blockchain activity indicators. Remember its an EVM chain but the token is $IP"""
     try:
         overview = story_service.get_address_overview(address)
-        return (
+        
+        # Start with basic information
+        result = (
             f"Address Overview for {overview['hash']}:\n"
             f"Balance: {overview['coin_balance']} IP\n"
             f"Is Contract: {overview['is_contract']}\n"
             f"Has Tokens: {overview['has_tokens']}\n"
-            f"Has Token Transfers: {overview['has_token_transfers']}"
+            f"Has Token Transfers: {overview['has_token_transfers']}\n"
         )
+        
+        # Add beacon chain withdrawals info if available
+        result += f"Has Beacon Chain Withdrawals: {overview['has_beacon_chain_withdrawals']}\n"
+        
+        # Add exchange rate if available
+        if overview.get('exchange_rate'):
+            result += f"Exchange Rate: ${overview['exchange_rate']}\n"
+        
+        # Add public tags if available
+        if overview['public_tags']:
+            tags = ", ".join([tag['display_name'] for tag in overview['public_tags']])
+            result += f"Public Tags: {tags}\n"
+        
+        # Add private tags if available
+        if overview['private_tags']:
+            tags = ", ".join([tag['display_name'] for tag in overview['private_tags']])
+            result += f"Private Tags: {tags}\n"
+        
+        # Add watchlist names if available
+        if overview['watchlist_names']:
+            names = ", ".join([name['display_name'] for name in overview['watchlist_names']])
+            result += f"Watchlist Names: {names}\n"
+        
+        # Add token info if this address is a token contract
+        if overview.get('token'):
+            token = overview['token']
+            result += "\nToken Information:\n"
+            result += f"Name: {token['name']}\n"
+            result += f"Symbol: {token['symbol']}\n"
+            result += f"Total Supply: {token['total_supply']}\n"
+            result += f"Decimals: {token['decimals']}\n"
+            result += f"Type: {token['type']}\n"
+            result += f"Holders: {token['holders']}\n"
+            
+            if token.get('exchange_rate'):
+                result += f"Exchange Rate: {token['exchange_rate']}\n"
+            
+            if token.get('circulating_market_cap'):
+                result += f"Market Cap: {token['circulating_market_cap']}\n"
+        
+        return result
     except Exception as e:
         return f"Error getting address overview: {str(e)}"
 

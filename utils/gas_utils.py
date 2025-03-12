@@ -186,4 +186,20 @@ def get_gas_price_strategy(strategy: str = 'average') -> Optional[float]:
         return None
     except Exception as e:
         logger.error(f"Error getting gas price strategy: {e}")
-        return None 
+        return None
+
+def format_token_balance(balance, decimals=18):
+    """
+    Format a token balance from its raw form to a human-readable decimal value.
+    
+    Args:
+        balance (str or int): The raw token balance
+        decimals (int): Number of decimal places for the token (default: 18 for most ERC20 tokens)
+        
+    Returns:
+        float: The formatted token balance
+    """
+    try:
+        return float(balance) / (10 ** decimals)
+    except (ValueError, TypeError):
+        return balance 
