@@ -1,1 +1,1 @@
-# Story SDK MCP package 
+# Story SDK MCP package

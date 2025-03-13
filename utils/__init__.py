@@ -10,15 +10,17 @@ from utils.gas_utils import (
     eth_to_wei,
     gwei_to_eth,
     format_gas_prices,
-    calculate_transaction_fee
+    format_token_balance,
+    format_gas_amount,
 )
 
 __all__ = [
-    'wei_to_gwei',
-    'gwei_to_wei',
-    'wei_to_eth',
-    'eth_to_wei',
-    'gwei_to_eth',
-    'format_gas_prices',
-    'calculate_transaction_fee'
-] 
+    "wei_to_gwei",
+    "gwei_to_wei",
+    "wei_to_eth",
+    "eth_to_wei",
+    "gwei_to_eth",
+    "format_gas_prices",
+    "format_token_balance",
+    "format_gas_amount",
+]
