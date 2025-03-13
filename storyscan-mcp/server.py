@@ -2,6 +2,16 @@ from mcp.server.fastmcp import FastMCP
 from services.storyscan_service import StoryscanService
 import os
 from dotenv import load_dotenv
+from utils.gas_utils import (
+    format_token_balance, 
+    gwei_to_eth, 
+    gwei_to_wei, 
+    wei_to_gwei, 
+    wei_to_eth, 
+    eth_to_wei,
+    format_gas_prices,
+    format_gas_amount
+)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,17 +30,8 @@ story_service = StoryscanService(api_endpoint, disable_ssl_verification=True)
 print(f"Initialized StoryScan service with API endpoint: {api_endpoint}")
 
 @mcp.tool()
-def check_balance(address: str):
-    """Check the balance of an address. Remember its an EVM chain but the token is $IP"""
-    try:
-        balance = story_service.get_address_balance(address)
-        return f"Address: {balance['address']}\nBalance: {balance['balance']} IP"
-    except Exception as e:
-        return f"Error checking balance: {str(e)}"
-
-@mcp.tool()
 def get_transactions(address: str, limit: int = 10):
-    """Get recent transactions for an address. Remember its an EVM chain but the token is $IP"""
+    """Get recent (last 5) transactions for an address. Remember its an EVM chain but the token is $IP"""
     try:
         transactions = story_service.get_transaction_history(address, limit)
         
@@ -39,14 +40,153 @@ def get_transactions(address: str, limit: int = 10):
         
         formatted_transactions = []
         for tx in transactions:
-            date = tx["timestamp"]  # Could format this better if needed
+            # Format timestamp to be more readable
+            timestamp = tx["timestamp"]
+            try:
+                # Try to parse and format the timestamp if it's in ISO format
+                from datetime import datetime
+                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                date = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+            except (ValueError, AttributeError):
+                # If parsing fails, use the original timestamp
+                date = timestamp
+            
+            # Format transaction value with proper decimals
+            value = tx["value"]
+            try:
+                # Assuming value is in wei, convert to a more readable format
+                value_float = float(value)
+                if value_float > 0:
+                    value = f"{format_token_balance(value_float)} IP"
+                else:
+                    value = "0 IP"
+            except (ValueError, TypeError):
+                value = f"{value} IP"
+            
+            # Format transaction fee
+            fee = tx["fee"]["value"] if "fee" in tx and "value" in tx["fee"] else "Unknown"
+            try:
+                fee_float = float(fee)
+                if fee_float > 0:
+                    fee = f"{format_token_balance(fee_float)} IP"
+                else:
+                    fee = "0 IP"
+            except (ValueError, TypeError):
+                fee = f"{fee} IP"
+            
+            # Get transaction status
+            status = tx.get("status", "Unknown")
+            status_text = "✅ Success" if status.lower() == "ok" else f"❌ {status}"
+            
+            # Add result information if available
+            if tx.get("result") and tx["result"] != "success":
+                status_text += f" ({tx['result']})"
+            
+            # Add revert reason if available
+            if tx.get("revert_reason") and tx["revert_reason"].get("raw"):
+                status_text += f" - Revert reason: {tx['revert_reason']['raw']}"
+            
+            # Get transaction method if available
+            method = tx.get("method", "")
+            method_text = f" ({method})" if method else ""
+            
+            # Get transaction type
+            tx_types = tx.get("transaction_types", [])
+            tx_type_text = f" [{', '.join(tx_types)}]" if tx_types else ""
+            
+            # Format gas information if available
+            gas_info = ""
+            if tx.get("gas_used") and tx.get("gas_limit"):
+                gas_used = tx["gas_used"]
+                gas_limit = tx["gas_limit"]
+                gas_info = f"\nGas Used/Limit: {gas_used}/{gas_limit}"
+            
+            if tx.get("gas_price"):
+                gas_price = tx["gas_price"]
+                # Gas price is in gwei
+                gas_info += f"\nGas Price: {gas_price} gwei"
+            
+            # Add more gas information if available
+            if tx.get("base_fee_per_gas"):
+                gas_info += f"\nBase Fee: {tx['base_fee_per_gas']} gwei"
+            
+            if tx.get("max_fee_per_gas"):
+                gas_info += f"\nMax Fee: {tx['max_fee_per_gas']} gwei"
+            
+            if tx.get("priority_fee"):
+                gas_info += f"\nPriority Fee: {tx['priority_fee']}"
+            
+            if tx.get("max_priority_fee_per_gas"):
+                gas_info += f"\nMax Priority Fee: {tx['max_priority_fee_per_gas']} gwei"
+            
+            # Add transaction burnt fee if available
+            if tx.get("transaction_burnt_fee"):
+                gas_info += f"\nBurnt Fee: {tx['transaction_burnt_fee']}"
+            
+            # Add decoded input if available
+            decoded_input = ""
+            if tx.get("decoded_input") and tx["decoded_input"].get("method_call"):
+                decoded_input = f"\nMethod Call: {tx['decoded_input']['method_call']}"
+                
+                # Add parameters if available
+                if tx["decoded_input"].get("parameters"):
+                    params = tx["decoded_input"]["parameters"]
+                    param_text = []
+                    for param in params:
+                        name = param.get("name", "")
+                        type_ = param.get("type", "")
+                        value_ = param.get("value", "")
+                        
+                        # Format value if it's a token amount
+                        if type_ == "uint256" and isinstance(value_, str) and value_.isdigit() and len(value_) > 10:
+                            try:
+                                value_ = f"{format_token_balance(value_)} IP"
+                            except (ValueError, TypeError):
+                                pass
+                        
+                        param_text.append(f"{name}: {value_}")
+                    
+                    if param_text:
+                        decoded_input += f"\nParameters: {', '.join(param_text)}"
+            
+            # Add raw input if available and decoded input is not
+            elif tx.get("raw_input"):
+                # Truncate if too long
+                raw_input = tx["raw_input"]
+                if len(raw_input) > 50:
+                    raw_input = raw_input[:47] + "..."
+                decoded_input = f"\nRaw Input: {raw_input}"
+            
+            # Add USD value if exchange rate is available
+            usd_value = ""
+            if tx.get("exchange_rate") and value_float > 0:
+                try:
+                    exchange_rate = float(tx["exchange_rate"])
+                    value_eth = format_token_balance(value_float)
+                    usd_amount = float(value_eth) * exchange_rate
+                    usd_value = f" (${usd_amount:.2f} USD)"
+                except (ValueError, TypeError):
+                    pass
+            
+            # Add contract information if available
+            contract_info = ""
+            if tx.get("created_contract"):
+                contract_info = f"\nCreated Contract: {tx['created_contract']['hash']}"
+            
+            # Add error information if available
+            error_info = ""
+            if tx.get("has_error_in_internal_transactions"):
+                error_info = f"\nHas Error In Internal Transactions: {tx['has_error_in_internal_transactions']}"
+            
+            # Format the transaction
             formatted_tx = (
                 f"Block {tx['block_number']} ({date}):\n"
                 f"Hash: {tx['hash']}\n"
                 f"From: {tx['from_']['hash']}\n"
-                f"To: {tx['to']['hash']}\n"
-                f"Value: {tx['value']} IP\n"
-                f"Fee: {tx['fee']['value']} IP\n"
+                f"To: {tx['to']['hash']}{method_text}{tx_type_text}\n"
+                f"Value: {value}{usd_value}\n"
+                f"Fee: {fee}{gas_info}{decoded_input}{contract_info}{error_info}\n"
+                f"Status: {status_text}\n"
                 f"---"
             )
             formatted_transactions.append(formatted_tx)
@@ -63,19 +203,63 @@ def get_stats():
         # Convert average block time from milliseconds to seconds
         block_time_seconds = float(stats['average_block_time']) / 1000
         
+        # Format gas prices to show only gwei units
+        gas_prices_text = (
+            f"Slow: {stats['gas_prices']['slow']} gwei\n"
+            f"Average: {stats['gas_prices']['average']} gwei\n"
+            f"Fast: {stats['gas_prices']['fast']} gwei"
+        )
+        
+        # Format market cap with proper currency symbol
+        market_cap = stats.get('market_cap', '0')
+        if market_cap:
+            try:
+                market_cap_float = float(market_cap)
+                if market_cap_float >= 1_000_000_000:  # Billions
+                    market_cap = f"${market_cap_float / 1_000_000_000:.2f}B"
+                elif market_cap_float >= 1_000_000:  # Millions
+                    market_cap = f"${market_cap_float / 1_000_000:.2f}M"
+                else:
+                    market_cap = f"${market_cap_float:,.2f}"
+            except (ValueError, TypeError):
+                market_cap = f"${market_cap}"
+        
+        # Format coin price
+        coin_price = stats.get('coin_price', '0')
+        if coin_price:
+            try:
+                coin_price = f"${float(coin_price):,.2f}"
+            except (ValueError, TypeError):
+                coin_price = f"${coin_price}"
+        
+        # Format gas used values for better readability
+        gas_used_today_formatted = format_gas_amount(stats['gas_used_today'])
+        total_gas_used_formatted = format_gas_amount(stats['total_gas_used'])
+        
+        # Create a human-readable format for when the next gas price update will occur
+        gas_update_time = "Unknown"
+        if stats.get('gas_prices_update_in_seconds'):
+            minutes = int(stats['gas_prices_update_in_seconds'] // 60)
+            seconds = int(stats['gas_prices_update_in_seconds'] % 60)
+            gas_update_time = f"{minutes}m {seconds}s"
+        
         return {
             "content": [
                 {
                     "type": "text",
                     "text": f"Blockchain Statistics:\n"
                            f"Total Blocks: {stats['total_blocks']}\n"
-                           f"Average Block Time: {block_time_seconds} seconds\n"
+                           f"Average Block Time: {block_time_seconds:.2f} seconds\n"
                            f"Total Transactions: {stats['total_transactions']}\n"
+                           f"Transactions Today: {stats.get('transactions_today', 'N/A')}\n"
                            f"Total Addresses: {stats['total_addresses']}\n"
-                           f"Current Gas Price: {stats['gas_prices']['average']} IP\n"
-                           f"Gas Used Today: {stats['gas_used_today_formatted']}\n"
-                           f"Total Gas Used: {stats['total_gas_used_formatted']}\n"
-                           f"Network Utilization: {stats['network_utilization_percentage']}%"
+                           f"IP Price: {coin_price}\n"
+                           f"Market Cap: {market_cap}\n"
+                           f"Network Utilization: {stats['network_utilization_percentage']}%\n\n"
+                           f"Gas Prices:\n{gas_prices_text}\n"
+                           f"Gas Prices Update In: {gas_update_time}\n\n"
+                           f"Gas Used Today: {gas_used_today_formatted}\n"
+                           f"Total Gas Used: {total_gas_used_formatted}"
                 }
             ],
             "raw_data": {
@@ -86,8 +270,9 @@ def get_stats():
                 "gas_price_updated_at": stats.get('gas_price_updated_at'),
                 "gas_prices": stats.get('gas_prices'),
                 "gas_prices_update_in": stats.get('gas_prices_update_in'),
+                "gas_prices_update_in_seconds": stats.get('gas_prices_update_in_seconds'),
                 "gas_used_today": stats.get('gas_used_today'),
-                "gas_used_today_formatted": stats.get('gas_used_today_formatted'),
+                "gas_used_today_formatted": gas_used_today_formatted,
                 "market_cap": stats.get('market_cap'),
                 "network_utilization_percentage": stats.get('network_utilization_percentage'),
                 "secondary_coin_image": stats.get('secondary_coin_image'),
@@ -96,7 +281,7 @@ def get_stats():
                 "total_addresses": stats.get('total_addresses'),
                 "total_blocks": stats.get('total_blocks'),
                 "total_gas_used": stats.get('total_gas_used'),
-                "total_gas_used_formatted": stats.get('total_gas_used_formatted'),
+                "total_gas_used_formatted": total_gas_used_formatted,
                 "total_transactions": stats.get('total_transactions'),
                 "transactions_today": stats.get('transactions_today'),
                 "tvl": stats.get('tvl')
@@ -112,53 +297,122 @@ def get_address_overview(address: str):
     try:
         overview = story_service.get_address_overview(address)
         
+        # Format the coin balance from wei to a human-readable value
+        raw_balance = overview['coin_balance']
+        formatted_balance = format_token_balance(raw_balance)
+        
         # Start with basic information
         result = (
             f"Address Overview for {overview['hash']}:\n"
-            f"Balance: {overview['coin_balance']} IP\n"
-            f"Is Contract: {overview['is_contract']}\n"
-            f"Has Tokens: {overview['has_tokens']}\n"
-            f"Has Token Transfers: {overview['has_token_transfers']}\n"
+            f"Balance: {formatted_balance} IP"
         )
         
-        # Add beacon chain withdrawals info if available
-        result += f"Has Beacon Chain Withdrawals: {overview['has_beacon_chain_withdrawals']}\n"
-        
-        # Add exchange rate if available
+        # Add USD value if exchange rate is available
         if overview.get('exchange_rate'):
-            result += f"Exchange Rate: ${overview['exchange_rate']}\n"
+            try:
+                exchange_rate = float(overview['exchange_rate'])
+                balance_eth = float(formatted_balance)
+                usd_value = balance_eth * exchange_rate
+                result += f" (${usd_value:.2f} USD)"
+            except (ValueError, TypeError):
+                pass
+        
+        # Add block number when balance was updated
+        if overview.get('block_number_balance_updated_at'):
+            result += f"\nBalance Updated at Block: {overview['block_number_balance_updated_at']}"
+        
+        # Add basic address information
+        result += f"\nIs Contract: {overview['is_contract']}"
+        if overview.get('is_verified'):
+            result += f"\nIs Verified: {overview['is_verified']}"
+        if overview.get('is_scam'):
+            result += f"\nIs Flagged as Scam: {overview['is_scam']}"
+        
+        # Add ENS domain name if available
+        if overview.get('ens_domain_name'):
+            result += f"\nENS Domain: {overview['ens_domain_name']}"
+        
+        # Add creation information if available
+        if overview.get('creation_transaction_hash'):
+            result += f"\nCreation Transaction: {overview['creation_transaction_hash']}"
+        if overview.get('creator_address_hash'):
+            result += f"\nCreator Address: {overview['creator_address_hash']}"
+        
+        # Add activity indicators
+        result += f"\n\nActivity Indicators:"
+        result += f"\nHas Tokens: {overview['has_tokens']}"
+        result += f"\nHas Token Transfers: {overview['has_token_transfers']}"
+        result += f"\nHas Logs: {overview['has_logs']}"
+        result += f"\nHas Beacon Chain Withdrawals: {overview['has_beacon_chain_withdrawals']}"
+        result += f"\nHas Validated Blocks: {overview['has_validated_blocks']}"
+        result += f"\nHas Decompiled Code: {overview['has_decompiled_code']}"
+        
+        # Add proxy information if available
+        if overview.get('proxy_type'):
+            result += f"\nProxy Type: {overview['proxy_type']}"
+        
+        if overview.get('implementations') and len(overview['implementations']) > 0:
+            impls = ", ".join([impl for impl in overview['implementations']])
+            result += f"\nImplementations: {impls}"
         
         # Add public tags if available
         if overview['public_tags']:
             tags = ", ".join([tag['display_name'] for tag in overview['public_tags']])
-            result += f"Public Tags: {tags}\n"
+            result += f"\n\nPublic Tags: {tags}"
         
         # Add private tags if available
         if overview['private_tags']:
             tags = ", ".join([tag['display_name'] for tag in overview['private_tags']])
-            result += f"Private Tags: {tags}\n"
+            result += f"\nPrivate Tags: {tags}"
         
         # Add watchlist names if available
         if overview['watchlist_names']:
             names = ", ".join([name['display_name'] for name in overview['watchlist_names']])
-            result += f"Watchlist Names: {names}\n"
+            result += f"\nWatchlist Names: {names}"
         
         # Add token info if this address is a token contract
         if overview.get('token'):
             token = overview['token']
-            result += "\nToken Information:\n"
-            result += f"Name: {token['name']}\n"
-            result += f"Symbol: {token['symbol']}\n"
-            result += f"Total Supply: {token['total_supply']}\n"
-            result += f"Decimals: {token['decimals']}\n"
-            result += f"Type: {token['type']}\n"
-            result += f"Holders: {token['holders']}\n"
+            result += "\n\nToken Information:"
+            result += f"\nName: {token['name']}"
+            result += f"\nSymbol: {token['symbol']}"
+            
+            # Format total supply with proper decimals
+            if token.get('total_supply') and token.get('decimals') and token['decimals'] != "null":
+                try:
+                    decimals = int(token['decimals'])
+                    total_supply = format_token_balance(token['total_supply'], decimals)
+                    result += f"\nTotal Supply: {total_supply} {token['symbol']}"
+                except (ValueError, TypeError):
+                    result += f"\nTotal Supply: {token['total_supply']}"
+            else:
+                result += f"\nTotal Supply: {token.get('total_supply', 'Unknown')}"
+                
+            result += f"\nDecimals: {token.get('decimals', 'Unknown')}"
+            result += f"\nType: {token.get('type', 'Unknown')}"
+            result += f"\nHolders: {token.get('holders', 'Unknown')}"
             
             if token.get('exchange_rate'):
-                result += f"Exchange Rate: {token['exchange_rate']}\n"
+                result += f"\nExchange Rate: ${token['exchange_rate']}"
             
             if token.get('circulating_market_cap'):
-                result += f"Market Cap: {token['circulating_market_cap']}\n"
+                try:
+                    market_cap = float(token['circulating_market_cap'])
+                    if market_cap >= 1_000_000_000:  # Billions
+                        formatted_market_cap = f"${market_cap / 1_000_000_000:.2f}B"
+                    elif market_cap >= 1_000_000:  # Millions
+                        formatted_market_cap = f"${market_cap / 1_000_000:.2f}M"
+                    else:
+                        formatted_market_cap = f"${market_cap:,.2f}"
+                    result += f"\nMarket Cap: {formatted_market_cap}"
+                except (ValueError, TypeError):
+                    result += f"\nMarket Cap: ${token['circulating_market_cap']}"
+        
+        # Add raw data for debugging or advanced use
+        result += "\n\nRaw Data:"
+        result += f"\nRaw Balance: {raw_balance} wei"
+        if overview.get('exchange_rate'):
+            result += f"\nExchange Rate: ${overview['exchange_rate']} USD"
         
         return result
     except Exception as e:
@@ -170,20 +424,54 @@ def get_token_holdings(address: str):
     and balances. Remember its an EVM chain but the token is $IP"""
     try:
         holdings = story_service.get_token_holdings(address)
-        
         if not holdings["items"]:
             return f"No token holdings found for {address}"
         
         formatted_holdings = []
         for holding in holdings["items"]:
             token = holding["token"]
+            raw_value = holding["value"]
+            
+            # Get formatted value using a cleaner approach
+            try:
+                decimals = int(token.get("decimals")) if token.get("decimals") and token["decimals"] != "null" else None
+                formatted_value = format_token_balance(raw_value, decimals) if decimals is not None else raw_value
+            except (ValueError, TypeError):
+                formatted_value = raw_value
+            
+            # Calculate USD value if available (using a cleaner approach)
+            usd_display = ""
+            if token.get("exchange_rate"):
+                try:
+                    usd_amount = float(formatted_value) * float(token["exchange_rate"])
+                    usd_display = f" (${usd_amount:.2f} USD)"
+                except (ValueError, TypeError):
+                    pass
+            
+            # Create the display string directly
+            display_value = f"{formatted_value} {token['symbol']}{usd_display}"
+                
             formatted_holding = (
                 f"Token: {token['name']} ({token['symbol']})\n"
-                f"Value: {holding['value']}\n"
+                f"Value: {display_value}\n"
+                f"Decimals: {token.get('decimals', 'Unknown')}\n"
                 f"Address: {token['address']}\n"
-                f"Type: {token['type']}\n"
-                f"---"
+                f"Type: {token['type']}"
             )
+            
+            # Add holders count if available
+            if token.get("holders"):
+                formatted_holding += f"\nHolders: {token['holders']}"
+            
+            # Add total supply if available
+            if token.get("total_supply"):
+                formatted_holding += f"\nTotal Supply: {token['total_supply']}"
+            
+            # Add market cap if available
+            if token.get("circulating_market_cap"):
+                formatted_holding += f"\nMarket Cap: ${token['circulating_market_cap']}"
+            
+            formatted_holding += "\n---"
             formatted_holdings.append(formatted_holding)
         
         return f"Token holdings for {address}:\n\n" + "\n".join(formatted_holdings)
@@ -204,30 +492,79 @@ def get_nft_holdings(address: str):
         formatted_holdings = []
         for nft in nft_holdings["items"]:
             token = nft["token"]
+            
+            # Basic NFT information
             formatted_holding = (
                 f"Collection: {token['name']} ({token['symbol']})\n"
                 f"Token ID: {nft['id']}\n"
                 f"Token Type: {nft['token_type']}\n"
+                f"Value: {nft['value']} (smallest unit)\n"
+                f"Contract Address: {token['address']}\n"
             )
             
-            # Add image URL if available
-            if nft['image_url']:
-                formatted_holding += f"Image: {nft['image_url']}\n"
+            # Add token statistics if available
+            if token.get("holders"):
+                formatted_holding += f"Collection Holders: {token['holders']}\n"
+            
+            if token.get("total_supply"):
+                formatted_holding += f"Collection Total Supply: {token['total_supply']}\n"
+            
+            # Add media information if available
+            if nft.get('image_url'):
+                formatted_holding += f"Image URL: {nft['image_url']}\n"
                 
-            # Add external URL if available
-            if nft['external_app_url']:
+            if nft.get('animation_url'):
+                formatted_holding += f"Animation URL: {nft['animation_url']}\n"
+                
+            if nft.get('media_url') and nft['media_url'] != nft.get('image_url'):
+                formatted_holding += f"Media URL: {nft['media_url']}\n"
+                
+            if nft.get('media_type'):
+                formatted_holding += f"Media Type: {nft['media_type']}\n"
+                
+            if nft.get('external_app_url'):
                 formatted_holding += f"External URL: {nft['external_app_url']}\n"
                 
             # Add metadata summary if available
-            if nft['metadata'] and isinstance(nft['metadata'], dict):
+            if nft.get('metadata') and isinstance(nft['metadata'], dict):
+                formatted_holding += "Metadata:\n"
+                
                 if 'name' in nft['metadata']:
-                    formatted_holding += f"Name: {nft['metadata']['name']}\n"
+                    formatted_holding += f"  Name: {nft['metadata']['name']}\n"
+                    
                 if 'description' in nft['metadata'] and nft['metadata']['description']:
                     desc = nft['metadata']['description']
                     # Truncate long descriptions
                     if len(desc) > 100:
                         desc = desc[:97] + "..."
-                    formatted_holding += f"Description: {desc}\n"
+                    formatted_holding += f"  Description: {desc}\n"
+                
+                if 'external_url' in nft['metadata']:
+                    formatted_holding += f"  External URL: {nft['metadata']['external_url']}\n"
+                
+                # Add relationships if available
+                if 'relationships' in nft['metadata'] and nft['metadata']['relationships']:
+                    relationships = nft['metadata']['relationships']
+                    if relationships and len(relationships) > 0:
+                        formatted_holding += "  Relationships:\n"
+                        for rel in relationships:
+                            rel_type = rel.get('type', 'Unknown')
+                            parent_id = rel.get('parentIpId', 'Unknown')
+                            formatted_holding += f"    - {rel_type}: {parent_id}\n"
+                
+                # Add attributes if available
+                if 'attributes' in nft['metadata'] and nft['metadata']['attributes']:
+                    attrs = nft['metadata']['attributes']
+                    if attrs and len(attrs) > 0:
+                        formatted_holding += "  Attributes:\n"
+                        # Limit to first 5 attributes to avoid overwhelming output
+                        for i, attr in enumerate(attrs[:5]):
+                            if isinstance(attr, dict):
+                                trait_type = attr.get('trait_type') or attr.get('name', 'Trait')
+                                value = attr.get('value', '')
+                                formatted_holding += f"    - {trait_type}: {value}\n"
+                        if len(attrs) > 5:
+                            formatted_holding += f"    ... and {len(attrs) - 5} more attributes\n"
             
             formatted_holding += "---\n"
             formatted_holdings.append(formatted_holding)
@@ -248,9 +585,195 @@ def interpret_transaction(transaction_hash: str) -> str:
         str: A human-readable summary of the transaction
     """
     try:
+        # Get the interpretation from the service
         interpretation = story_service.get_transaction_interpretation(transaction_hash)
-        # Just return the raw response
-        return str(interpretation)
+        
+        # Also get the full transaction details for additional information
+        try:
+            transaction = story_service._make_api_request(f"transactions/{transaction_hash}")
+        except:
+            transaction = None
+        
+        # Start with a header
+        result = f"Transaction Interpretation for {transaction_hash}:\n\n"
+        
+        # Check if the response contains summaries
+        if 'summaries' in interpretation and interpretation['summaries']:
+            # Extract and format each summary
+            for i, summary in enumerate(interpretation['summaries']):
+                if 'summary_template' in summary and 'summary_template_variables' in summary:
+                    # Get the template and variables
+                    template = summary['summary_template']
+                    variables = summary['summary_template_variables']
+                    
+                    # Try to format the template with the variables
+                    try:
+                        # Extract values from the variables
+                        formatted_values = {}
+                        for key, var_data in variables.items():
+                            if var_data['type'] == 'address' and 'value' in var_data and 'hash' in var_data['value']:
+                                formatted_values[key] = var_data['value']['hash']
+                            elif var_data['type'] == 'token' and 'value' in var_data and 'symbol' in var_data['value']:
+                                formatted_values[key] = var_data['value']['symbol']
+                            elif var_data['type'] == 'currency' and 'value' in var_data:
+                                # Format currency values with proper decimals
+                                try:
+                                    token_info = variables.get('token', {}).get('value', {})
+                                    decimals = int(token_info.get('decimals', 18))
+                                    raw_value = var_data['value']
+                                    formatted_value = format_token_balance(raw_value, decimals)
+                                    formatted_values[key] = formatted_value
+                                except (ValueError, TypeError):
+                                    formatted_values[key] = var_data['value']
+                            elif 'value' in var_data:
+                                formatted_values[key] = var_data['value']
+                        
+                        # Replace placeholders in the template
+                        formatted_summary = template
+                        for key, value in formatted_values.items():
+                            formatted_summary = formatted_summary.replace(f"{{{key}}}", str(value))
+                        
+                        result += f"Summary: {formatted_summary}\n\n"
+                    except Exception as e:
+                        result += f"Could not format summary: {str(e)}\n\n"
+        
+        # Add transaction details if available
+        if transaction:
+            # Basic transaction information
+            result += "Transaction Details:\n"
+            
+            # Add timestamp
+            if 'timestamp' in transaction:
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(transaction['timestamp'].replace('Z', '+00:00'))
+                    date = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+                    result += f"Date: {date}\n"
+                except (ValueError, TypeError):
+                    result += f"Date: {transaction['timestamp']}\n"
+            
+            # Add block information
+            if 'block_number' in transaction:
+                result += f"Block: {transaction['block_number']}\n"
+            
+            # Add from/to addresses
+            if 'from' in transaction and 'hash' in transaction['from']:
+                result += f"From: {transaction['from']['hash']}\n"
+            if 'to' in transaction and 'hash' in transaction['to']:
+                result += f"To: {transaction['to']['hash']}"
+                if 'name' in transaction['to'] and transaction['to']['name']:
+                    result += f" ({transaction['to']['name']})"
+                result += "\n"
+            
+            # Add value
+            if 'value' in transaction:
+                value = transaction['value']
+                try:
+                    value_float = float(value)
+                    if value_float > 0:
+                        value = f"{format_token_balance(value_float)} IP"
+                    else:
+                        value = "0 IP"
+                except (ValueError, TypeError) as e:
+                    value = f"{value} IP"
+                result += f"Value: {value}\n"
+            
+            # Add method
+            if 'method' in transaction:
+                result += f"Method: {transaction['method']}\n"
+            
+            # Add transaction types
+            if 'transaction_types' in transaction and transaction['transaction_types']:
+                result += f"Transaction Types: {', '.join(transaction['transaction_types'])}\n"
+            
+            # Add status
+            if 'status' in transaction:
+                status = transaction['status']
+                status_text = "Success" if status.lower() == "ok" else status
+                result += f"Status: {status_text}\n"
+                
+                # Add result if available
+                if 'result' in transaction and transaction['result'] != "success":
+                    result += f"Result: {transaction['result']}\n"
+            
+            # Add gas information
+            result += "\nGas Information:\n"
+            if 'gas_used' in transaction and 'gas_limit' in transaction:
+                result += f"Gas Used/Limit: {transaction['gas_used']}/{transaction['gas_limit']}\n"
+            
+            if 'gas_price' in transaction:
+                # Gas price is in gwei
+                result += f"Gas Price: {transaction['gas_price']} gwei\n"
+            
+            if 'base_fee_per_gas' in transaction:
+                result += f"Base Fee: {transaction['base_fee_per_gas']} gwei\n"
+            
+            if 'max_fee_per_gas' in transaction:
+                result += f"Max Fee: {transaction['max_fee_per_gas']} gwei\n"
+            
+            if 'priority_fee' in transaction:
+                result += f"Priority Fee: {transaction['priority_fee']} gwei\n"
+            
+            if 'fee' in transaction and 'value' in transaction['fee']:
+                fee = transaction['fee']['value']
+                try:
+                    fee_gwei = wei_to_gwei(int(fee))
+                    fee_eth = wei_to_eth(int(fee))
+                    result += f"Transaction Fee: {fee_gwei} gwei ({fee_eth} IP)\n"
+                except (ValueError, TypeError):
+                    result += f"Transaction Fee: {fee}\n"
+            
+            # Add token transfers if available
+            if 'token_transfers' in transaction and transaction['token_transfers']:
+                result += "\nToken Transfers:\n"
+                for i, transfer in enumerate(transaction['token_transfers']):
+                    token = transfer.get('token', {})
+                    token_symbol = token.get('symbol', 'Unknown')
+                    
+                    from_addr = transfer.get('from', {}).get('hash', 'Unknown')
+                    to_addr = transfer.get('to', {}).get('hash', 'Unknown')
+                    
+                    # Format token amount with proper decimals
+                    amount = transfer.get('total', {}).get('value', '0')
+                    decimals = int(transfer.get('total', {}).get('decimals', 18))
+                    try:
+                        formatted_amount = format_token_balance(amount, decimals)
+                    except (ValueError, TypeError):
+                        formatted_amount = amount
+                    
+                    result += f"  {i+1}. {formatted_amount} {token_symbol} from {from_addr} to {to_addr}\n"
+            
+            # Add decoded input if available
+            if 'decoded_input' in transaction and transaction['decoded_input']:
+                decoded = transaction['decoded_input']
+                result += "\nDecoded Input:\n"
+                if 'method_call' in decoded:
+                    result += f"Method Call: {decoded['method_call']}\n"
+                
+                if 'parameters' in decoded and decoded['parameters']:
+                    result += "Parameters:\n"
+                    for param in decoded['parameters']:
+                        name = param.get('name', '')
+                        type_ = param.get('type', '')
+                        value_ = param.get('value', '')
+                        
+                        # Format value if it's a token amount
+                        if type_ == "uint256" and isinstance(value_, str) and value_.isdigit() and len(value_) > 10:
+                            try:
+                                value_ = f"{format_token_balance(value_)} IP"
+                            except (ValueError, TypeError):
+                                pass
+                        
+                        result += f"  - {name}: {value_}\n"
+        
+        # Add transaction type from interpretation data
+        if 'data' in interpretation and interpretation['data']:
+            if 'debug_data' in interpretation['data']:
+                debug = interpretation['data']['debug_data']
+                if 'model_classification_type' in debug:
+                    result += f"\nTransaction Type: {debug['model_classification_type']}\n"
+        
+        return result
     except Exception as e:
         return f"Error interpreting transaction: {str(e)}"
 

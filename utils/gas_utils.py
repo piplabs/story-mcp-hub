@@ -138,52 +138,41 @@ def format_gas_prices(gas_prices: Dict[str, float], to_unit: str = 'gwei') -> Di
         logger.error(f"Error formatting gas prices: {e}")
         return gas_prices
 
-def calculate_transaction_fee(gas_price: Union[int, float, str], gas_limit: Union[int, str]) -> Dict[str, Any]:
+def get_gas_price_strategy(strategy: str = 'average', storyscan_service=None) -> Optional[float]:
     """
-    Calculate the transaction fee based on gas price and gas limit.
-    
-    Args:
-        gas_price: Gas price in wei
-        gas_limit: Gas limit for the transaction
-        
-    Returns:
-        Dict: Transaction fee in wei, gwei, and eth
-    """
-    try:
-        # Convert to int if they're strings
-        if isinstance(gas_price, str):
-            gas_price = int(gas_price)
-        if isinstance(gas_limit, str):
-            gas_limit = int(gas_limit)
-        
-        # Calculate fee in wei
-        fee_wei = gas_price * gas_limit
-        
-        return {
-            'wei': fee_wei,
-            'gwei': wei_to_gwei(fee_wei),
-            'eth': wei_to_eth(fee_wei)
-        }
-    except Exception as e:
-        logger.error(f"Error calculating transaction fee: {e}")
-        return {'wei': 0, 'gwei': 0.0, 'eth': 0.0}
-
-def get_gas_price_strategy(strategy: str = 'average') -> Optional[float]:
-    """
-    Get gas price based on a strategy.
+    Get gas price based on a strategy using the StoryScan API.
     
     Args:
         strategy: Strategy to use ('slow', 'average', 'fast')
+        storyscan_service: An instance of StoryScanService to fetch gas prices
         
     Returns:
         Optional[float]: Gas price in gwei based on the strategy
     """
     try:
-        # This would typically connect to a node or service to get current gas prices
-        # For now, we'll just return None to indicate this needs to be implemented
-        # with actual blockchain connection
-        logger.warning("get_gas_price_strategy needs to be implemented with actual blockchain connection")
-        return None
+        if not storyscan_service:
+            logger.warning("StoryscanService instance is required to fetch gas prices")
+            return None
+            
+        # Get stats from StoryScan API which includes gas prices
+        stats = storyscan_service.get_stats()
+        
+        if not stats or 'gas_prices' not in stats:
+            logger.warning("Failed to fetch gas prices from StoryScan API")
+            return None
+            
+        # Get gas price based on strategy
+        if strategy.lower() not in ['slow', 'average', 'fast']:
+            logger.warning(f"Invalid gas price strategy: {strategy}. Using 'average' instead.")
+            strategy = 'average'
+            
+        gas_price = stats['gas_prices'].get(strategy.lower())
+        
+        if gas_price is None:
+            logger.warning(f"Gas price for strategy '{strategy}' not found. Using 'average' instead.")
+            gas_price = stats['gas_prices'].get('average')
+            
+        return gas_price
     except Exception as e:
         logger.error(f"Error getting gas price strategy: {e}")
         return None
@@ -202,4 +191,171 @@ def format_token_balance(balance, decimals=18):
     try:
         return float(balance) / (10 ** decimals)
     except (ValueError, TypeError):
-        return balance 
+        return balance
+
+def calculate_fee(gas_price: float, gas_limit: int) -> str:
+    """
+    Calculate the transaction fee based on gas price (in gwei) and gas limit.
+    Returns a formatted string with the fee calculation.
+    
+    Args:
+        gas_price: Gas price in gwei
+        gas_limit: Gas limit for the transaction
+        
+    Returns:
+        str: Formatted transaction fee calculation
+    """
+    try:
+        # Convert gas price from gwei to wei
+        gas_price_wei = gwei_to_wei(gas_price)
+        
+        # Calculate fee in wei
+        fee_wei = gas_price_wei * gas_limit
+        
+        # Convert fee back to gwei
+        fee_gwei = wei_to_gwei(fee_wei)
+        
+        # Also calculate in ETH for reference
+        fee_eth = wei_to_eth(fee_wei)
+        
+        return {
+            'gas_price_gwei': gas_price,
+            'gas_limit': gas_limit,
+            'fee_wei': fee_wei,
+            'fee_gwei': fee_gwei,
+            'fee_eth': fee_eth,
+            'formatted_output': (
+                f"Transaction Fee Calculation:\n"
+                f"Gas Price: {gas_price} gwei\n"
+                f"Gas Limit: {gas_limit}\n"
+                f"Fee: {fee_gwei} gwei ({fee_eth} ETH)"
+            )
+        }
+    except Exception as e:
+        logger.error(f"Error calculating transaction fee: {e}")
+        return {
+            'error': str(e),
+            'formatted_output': f"Error calculating transaction fee: {str(e)}"
+        }
+
+def convert_units(value: float, from_unit: str, to_unit: str) -> Dict[str, Any]:
+    """
+    Convert between different units (wei, gwei, and IP/ETH).
+    
+    Args:
+        value: The value to convert
+        from_unit: The unit to convert from ('wei', 'gwei', or 'ip'/'eth')
+        to_unit: The unit to convert to ('wei', 'gwei', or 'ip'/'eth')
+        
+    Returns:
+        Dict: Conversion result with raw value and formatted output
+    """
+    try:
+        # Normalize units
+        from_unit = from_unit.lower()
+        to_unit = to_unit.lower()
+        
+        # Replace 'ip' with 'eth' for consistency with utility functions
+        if from_unit == 'ip':
+            from_unit = 'eth'
+        if to_unit == 'ip':
+            to_unit = 'eth'
+        
+        # Validate units
+        valid_units = ['wei', 'gwei', 'eth']
+        if from_unit not in valid_units:
+            return {
+                'error': f"Invalid from_unit: {from_unit}",
+                'formatted_output': f"Invalid from_unit: {from_unit}. Valid options are 'wei', 'gwei', or 'ip'/'eth'."
+            }
+        if to_unit not in valid_units:
+            return {
+                'error': f"Invalid to_unit: {to_unit}",
+                'formatted_output': f"Invalid to_unit: {to_unit}. Valid options are 'wei', 'gwei', or 'ip'/'eth'."
+            }
+        
+        # Perform conversion
+        result = None
+        
+        # Wei to other units
+        if from_unit == 'wei':
+            if to_unit == 'gwei':
+                result = wei_to_gwei(value)
+            elif to_unit == 'eth':
+                result = wei_to_eth(value)
+            else:  # wei to wei
+                result = value
+        
+        # Gwei to other units
+        elif from_unit == 'gwei':
+            if to_unit == 'wei':
+                result = gwei_to_wei(value)
+            elif to_unit == 'eth':
+                result = gwei_to_eth(value)
+            else:  # gwei to gwei
+                result = value
+        
+        # ETH to other units
+        elif from_unit == 'eth':
+            if to_unit == 'wei':
+                result = eth_to_wei(value)
+            elif to_unit == 'gwei':
+                wei_value = eth_to_wei(value)
+                result = wei_to_gwei(wei_value)
+            else:  # eth to eth
+                result = value
+        
+        # Format the result based on the to_unit
+        if to_unit == 'wei':
+            formatted_result = f"{int(result):,} wei"
+        elif to_unit == 'gwei':
+            formatted_result = f"{result:,.9f} gwei"
+        else:  # eth
+            formatted_result = f"{result:,.18f} IP"
+        
+        # Display the original value and unit
+        if from_unit == 'wei':
+            original = f"{int(value):,} wei"
+        elif from_unit == 'gwei':
+            original = f"{value:,.9f} gwei"
+        else:  # eth
+            original = f"{value:,.18f} IP"
+        
+        return {
+            'original_value': value,
+            'original_unit': from_unit,
+            'converted_value': result,
+            'converted_unit': to_unit,
+            'formatted_output': f"Conversion: {original} = {formatted_result}"
+        }
+    except Exception as e:
+        logger.error(f"Error converting units: {e}")
+        return {
+            'error': str(e),
+            'formatted_output': f"Error converting units: {str(e)}"
+        }
+
+def format_gas_amount(gas_amount: str) -> str:
+    """
+    Format large gas amounts to be more readable with units.
+    
+    Args:
+        gas_amount: Gas amount as string
+        
+    Returns:
+        str: Formatted gas amount with appropriate units
+    """
+    try:
+        amount = int(gas_amount)
+        if amount >= 1_000_000_000_000:  # Trillions
+            return f"{amount / 1_000_000_000_000:.2f} T gas"
+        elif amount >= 1_000_000_000:  # Billions
+            return f"{amount / 1_000_000_000:.2f} B gas"
+        elif amount >= 1_000_000:  # Millions
+            return f"{amount / 1_000_000:.2f} M gas"
+        elif amount >= 1_000:  # Thousands
+            return f"{amount / 1_000:.2f} K gas"
+        else:
+            return f"{amount} gas"
+    except (ValueError, TypeError):
+        return gas_amount  # Return original if conversion fails 
