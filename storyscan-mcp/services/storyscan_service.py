@@ -10,21 +10,32 @@ from typing import TypedDict, List, Optional, Dict, Any
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 # Now import the gas utilities with the correct path
-from utils.gas_utils import format_gas_prices, wei_to_gwei, gwei_to_eth, format_token_balance
+from utils.gas_utils import (
+    format_gas_prices,
+    wei_to_gwei,
+    gwei_to_eth,
+    format_token_balance,
+)
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, filename='storyscan_service.log', filemode='a',
-                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger('storyscan_service')
+logging.basicConfig(
+    level=logging.INFO,
+    filename="storyscan_service.log",
+    filemode="a",
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger("storyscan_service")
 
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 # Type definitions (similar to TypeScript interfaces)
 class GasPrices(TypedDict):
     average: float
     fast: float
     slow: float
+
 
 class BlockchainStats(TypedDict):
     total_blocks: str
@@ -42,6 +53,7 @@ class BlockchainStats(TypedDict):
     gas_prices_update_in: int
     gas_prices_update_in_seconds: float
     static_gas_price: Optional[str]
+
 
 class Transaction(TypedDict):
     hash: str
@@ -80,14 +92,17 @@ class Transaction(TypedDict):
     actions: Optional[List[Any]]
     authorization_list: Optional[List[Any]]
 
+
 class Tag(TypedDict):
     address_hash: str
     display_name: str
     label: str
 
+
 class WatchlistName(TypedDict):
     display_name: str
     label: str
+
 
 class TokenInfo(TypedDict):
     circulating_market_cap: Optional[str]
@@ -100,6 +115,7 @@ class TokenInfo(TypedDict):
     holders: str
     exchange_rate: Optional[str]
     total_supply: str
+
 
 class AddressOverview(TypedDict):
     hash: str
@@ -128,15 +144,18 @@ class AddressOverview(TypedDict):
     proxy_type: Optional[str]
     watchlist_address_id: Optional[str]
 
+
 class TokenHolding(TypedDict):
     token: TokenInfo
     value: str
     token_id: Optional[str]
     token_instance: Optional[dict]
 
+
 class TokenHoldingsResponse(TypedDict):
     items: List[TokenHolding]
     next_page_params: Optional[dict]
+
 
 class TokenInstance(TypedDict):
     is_unique: bool
@@ -149,18 +168,22 @@ class TokenInstance(TypedDict):
     token_type: str
     value: str
 
+
 class NFTCollection(TypedDict):
     token: TokenInfo
     amount: str
     token_instances: List[TokenInstance]
 
+
 class NFTCollectionsResponse(TypedDict):
     items: List[NFTCollection]
     next_page_params: Optional[dict]
 
+
 class TransactionSummary(TypedDict):
     summary_template: str
     summary_template_variables: dict
+
 
 class TransactionInterpretation(TypedDict):
     success: bool
@@ -168,38 +191,43 @@ class TransactionInterpretation(TypedDict):
     error: Optional[str] = None
     summaries: Optional[List[TransactionSummary]] = None
 
+
 class StoryscanService:
     def __init__(self, api_endpoint: str, disable_ssl_verification=False):
-        self.api_endpoint = api_endpoint.rstrip('/')
+        self.api_endpoint = api_endpoint.rstrip("/")
         self.disable_ssl_verification = disable_ssl_verification
         logger.info(f"Initialized StoryScan service with endpoint: {self.api_endpoint}")
 
     def _make_api_request(self, path: str, params: dict = None) -> dict:
         """Make a request to the Storyscan API."""
         url = f"{self.api_endpoint}/v2/{path}"
-        
+
         # Debug log to show the exact URL being requested
         logger.info(f"Making API request to: {url}")
-        
+
         try:
-            response = requests.get(url, params=params, verify=not self.disable_ssl_verification)
+            response = requests.get(
+                url, params=params, verify=not self.disable_ssl_verification
+            )
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
             logger.error(f"Error making request to {url}: {e}")
             raise Exception(f"API request failed: {str(e)}")
 
-    def get_transaction_history(self, address: str, limit: int = 5) -> List[Transaction]:
+    def get_transaction_history(
+        self, address: str, limit: int = 5
+    ) -> List[Transaction]:
         """Get transaction history for an address."""
         try:
             data = self._make_api_request(f"addresses/{address}/transactions")
             transactions = data["items"][:limit]
-            
+
             result = []
             for tx in transactions:
                 # Get the fee from the API response
-                fee = tx.get('fee', {})
-                
+                fee = tx.get("fee", {})
+
                 # Create a transaction object with all available fields
                 transaction = {
                     "hash": tx["hash"],
@@ -234,13 +262,15 @@ class StoryscanService:
                     "transaction_tag": tx.get("transaction_tag"),
                     "created_contract": tx.get("created_contract"),
                     "base_fee_per_gas": tx.get("base_fee_per_gas"),
-                    "has_error_in_internal_transactions": tx.get("has_error_in_internal_transactions"),
+                    "has_error_in_internal_transactions": tx.get(
+                        "has_error_in_internal_transactions"
+                    ),
                     "actions": tx.get("actions"),
-                    "authorization_list": tx.get("authorization_list")
+                    "authorization_list": tx.get("authorization_list"),
                 }
-                
+
                 result.append(transaction)
-            
+
             return result
         except Exception as e:
             logger.error(f"Error in get_transaction_history: {str(e)}")
@@ -250,14 +280,16 @@ class StoryscanService:
         """Get blockchain statistics."""
         try:
             data = self._make_api_request("stats")
-            
+
             # The gas prices from the API are already in gwei, no need to convert
             # No ETH conversion needed as per requirements
-            
+
             # Convert gas_prices_update_in from milliseconds to seconds
-            if 'gas_prices_update_in' in data:
-                data['gas_prices_update_in_seconds'] = data['gas_prices_update_in'] / 1000
-            
+            if "gas_prices_update_in" in data:
+                data["gas_prices_update_in_seconds"] = (
+                    data["gas_prices_update_in"] / 1000
+                )
+
             return BlockchainStats(
                 total_blocks=data["total_blocks"],
                 total_addresses=data["total_addresses"],
@@ -272,8 +304,10 @@ class StoryscanService:
                 total_gas_used=data["total_gas_used"],
                 gas_price_updated_at=data["gas_price_updated_at"],
                 gas_prices_update_in=data["gas_prices_update_in"],
-                gas_prices_update_in_seconds=data.get("gas_prices_update_in_seconds", 0),
-                static_gas_price=data["static_gas_price"]
+                gas_prices_update_in_seconds=data.get(
+                    "gas_prices_update_in_seconds", 0
+                ),
+                static_gas_price=data["static_gas_price"],
             )
         except Exception as e:
             logger.error(f"Error in get_blockchain_stats: {str(e)}")
@@ -283,10 +317,10 @@ class StoryscanService:
         """Get a comprehensive overview of an address including balances and token info."""
         try:
             data = self._make_api_request(f"addresses/{address}")
-            
+
             # Return the raw coin balance without formatting
             # Formatting will be done in the server.py file
-            
+
             return AddressOverview(
                 hash=data["hash"],
                 coin_balance=data["coin_balance"],  # Keep the raw balance
@@ -299,7 +333,9 @@ class StoryscanService:
                 public_tags=data["public_tags"],
                 watchlist_names=data["watchlist_names"],
                 exchange_rate=data.get("exchange_rate"),
-                block_number_balance_updated_at=data.get("block_number_balance_updated_at"),
+                block_number_balance_updated_at=data.get(
+                    "block_number_balance_updated_at"
+                ),
                 creation_transaction_hash=data.get("creation_transaction_hash"),
                 creator_address_hash=data.get("creator_address_hash"),
                 ens_domain_name=data.get("ens_domain_name"),
@@ -312,7 +348,7 @@ class StoryscanService:
                 metadata=data.get("metadata"),
                 name=data.get("name"),
                 proxy_type=data.get("proxy_type"),
-                watchlist_address_id=data.get("watchlist_address_id")
+                watchlist_address_id=data.get("watchlist_address_id"),
             )
         except Exception as e:
             logger.error(f"Error in get_address_overview: {str(e)}")
@@ -323,8 +359,7 @@ class StoryscanService:
         try:
             data = self._make_api_request(f"addresses/{address}/tokens")
             return TokenHoldingsResponse(
-                items=data["items"],
-                next_page_params=data.get("next_page_params")
+                items=data["items"], next_page_params=data.get("next_page_params")
             )
         except Exception as e:
             logger.error(f"Error in get_token_holdings: {str(e)}")
@@ -334,12 +369,13 @@ class StoryscanService:
         """Get NFT holdings for an address."""
         try:
             # Using the correct endpoint with type parameters
-            data = self._make_api_request(f"addresses/{address}/nft", 
-                                         params={"type": "ERC-721,ERC-404,ERC-1155"})
-            
+            data = self._make_api_request(
+                f"addresses/{address}/nft", params={"type": "ERC-721,ERC-404,ERC-1155"}
+            )
+
             # Log the successful response for debugging
             logger.info(f"Successfully retrieved NFT holdings for {address}")
-            
+
             # Simply return the raw API response as the structure matches what we need
             return data
         except Exception as e:
@@ -350,10 +386,10 @@ class StoryscanService:
         """Get a human-readable interpretation of a transaction."""
         try:
             data = self._make_api_request(f"transactions/{tx_hash}/summary")
-            
+
             # Log the exact response for debugging
             logger.info(f"API Response for transaction {tx_hash}: {data}")
-            
+
             # Simply return the raw API response
             return data
         except Exception as e:

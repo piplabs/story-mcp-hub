@@ -29,7 +29,7 @@ AENEID_CONTRACTS = {
     "RoyaltyModule": "0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086",
     "RoyaltyPolicyLAP": "0xBe54FB168b3c982b7AaE60dB6CF75Bd8447b390E",
     "RoyaltyPolicyLRP": "0x9156e603C949481883B1d3355c6f1132D191fC41",
-    "SPG_NFT": "0x76ba2c2428F756010683c4ece6f49296b4756C1A"  # Official SPG NFT contract for Aeneid
+    "SPG_NFT": "0x76ba2c2428F756010683c4ece6f49296b4756C1A",  # Official SPG NFT contract for Aeneid
 }
 
 # Mainnet contract addresses
@@ -59,22 +59,23 @@ MAINNET_CONTRACTS = {
     "RoyaltyModule": "0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086",
     "RoyaltyPolicyLAP": "0xBe54FB168b3c982b7AaE60dB6CF75Bd8447b390E",
     "RoyaltyPolicyLRP": "0x9156e603C949481883B1d3355c6f1132D191fC41",
-    "SPG_NFT": "0x98971c660ac20880b60F86Cc3113eBd979eb3aAE"  # Official SPG NFT contract for Mainnet
+    "SPG_NFT": "0x98971c660ac20880b60F86Cc3113eBd979eb3aAE",  # Official SPG NFT contract for Mainnet
 }
 
 # Chain IDs for different networks
 CHAIN_IDS = {
     "aeneid": 1315,  # Story Protocol Aeneid testnet
-    "mainnet": 1514   # Story Protocol mainnet
+    "mainnet": 1514,  # Story Protocol mainnet
 }
+
 
 def get_contracts_by_chain_id(chain_id):
     """
     Get contract addresses based on chain ID.
-    
+
     Args:
         chain_id (int): The chain ID of the network
-        
+
     Returns:
         dict: Contract addresses for the specified network
     """
@@ -85,13 +86,14 @@ def get_contracts_by_chain_id(chain_id):
     else:
         raise ValueError(f"Unsupported chain ID: {chain_id}")
 
+
 def get_contracts_by_network_name(network_name):
     """
     Get contract addresses based on network name.
-    
+
     Args:
         network_name (str): The name of the network ('aeneid' or 'mainnet')
-        
+
     Returns:
         dict: Contract addresses for the specified network
     """
@@ -101,4 +103,4 @@ def get_contracts_by_network_name(network_name):
     elif network_name == "mainnet":
         return MAINNET_CONTRACTS
     else:
-        raise ValueError(f"Unsupported network name: {network_name}") 
+        raise ValueError(f"Unsupported network name: {network_name}")
