@@ -633,16 +633,8 @@ def interpret_transaction(transaction_hash: str) -> str:
         str: A human-readable summary of the transaction
     """
     try:
-        # Get the interpretation from the service
+        # Get the interpretation from the service (only using the summary endpoint)
         interpretation = story_service.get_transaction_interpretation(transaction_hash)
-
-        # Also get the full transaction details for additional information
-        try:
-            transaction = story_service._make_api_request(
-                f"transactions/{transaction_hash}"
-            )
-        except:
-            transaction = None
 
         # Start with a header
         result = f"Transaction Interpretation for {transaction_hash}:\n\n"
@@ -700,155 +692,47 @@ def interpret_transaction(transaction_hash: str) -> str:
                                 f"{{{key}}}", str(value)
                             )
 
-                        result += f"Summary: {formatted_summary}\n\n"
+                        result += f"{formatted_summary}\n\n"
                     except Exception as e:
                         result += f"Could not format summary: {str(e)}\n\n"
 
-        # Add transaction details if available
-        if transaction:
-            # Basic transaction information
-            result += "Transaction Details:\n"
-
-            # Add timestamp
-            if "timestamp" in transaction:
-                try:
-                    from datetime import datetime
-
-                    dt = datetime.fromisoformat(
-                        transaction["timestamp"].replace("Z", "+00:00")
-                    )
-                    date = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-                    result += f"Date: {date}\n"
-                except (ValueError, TypeError):
-                    result += f"Date: {transaction['timestamp']}\n"
-
-            # Add block information
-            if "block_number" in transaction:
-                result += f"Block: {transaction['block_number']}\n"
-
-            # Add from/to addresses
-            if "from" in transaction and "hash" in transaction["from"]:
-                result += f"From: {transaction['from']['hash']}\n"
-            if "to" in transaction and "hash" in transaction["to"]:
-                result += f"To: {transaction['to']['hash']}"
-                if "name" in transaction["to"] and transaction["to"]["name"]:
-                    result += f" ({transaction['to']['name']})"
-                result += "\n"
-
-            # Add value
-            if "value" in transaction:
-                value = transaction["value"]
-                try:
-                    value_float = float(value)
-                    if value_float > 0:
-                        value = f"{format_token_balance(value_float)} IP"
-                    else:
-                        value = "0 IP"
-                except (ValueError, TypeError) as e:
-                    value = f"{value} IP"
-                result += f"Value: {value}\n"
-
-            # Add method
-            if "method" in transaction:
-                result += f"Method: {transaction['method']}\n"
-
-            # Add transaction types
-            if "transaction_types" in transaction and transaction["transaction_types"]:
-                result += f"Transaction Types: {', '.join(transaction['transaction_types'])}\n"
-
-            # Add status
-            if "status" in transaction:
-                status = transaction["status"]
-                status_text = "Success" if status.lower() == "ok" else status
-                result += f"Status: {status_text}\n"
-
-                # Add result if available
-                if "result" in transaction and transaction["result"] != "success":
-                    result += f"Result: {transaction['result']}\n"
-
-            # Add gas information
-            result += "\nGas Information:\n"
-            if "gas_used" in transaction and "gas_limit" in transaction:
-                result += f"Gas Used/Limit: {transaction['gas_used']}/{transaction['gas_limit']}\n"
-
-            if "gas_price" in transaction:
-                # Gas price is in gwei
-                result += f"Gas Price: {transaction['gas_price']} gwei\n"
-
-            if "base_fee_per_gas" in transaction:
-                result += f"Base Fee: {transaction['base_fee_per_gas']} gwei\n"
-
-            if "max_fee_per_gas" in transaction:
-                result += f"Max Fee: {transaction['max_fee_per_gas']} gwei\n"
-
-            if "priority_fee" in transaction:
-                result += f"Priority Fee: {transaction['priority_fee']} gwei\n"
-
-            if "fee" in transaction and "value" in transaction["fee"]:
-                fee = transaction["fee"]["value"]
-                try:
-                    fee_gwei = wei_to_gwei(int(fee))
-                    fee_eth = wei_to_eth(int(fee))
-                    result += f"Transaction Fee: {fee_gwei} gwei ({fee_eth} IP)\n"
-                except (ValueError, TypeError):
-                    result += f"Transaction Fee: {fee}\n"
-
-            # Add token transfers if available
-            if "token_transfers" in transaction and transaction["token_transfers"]:
-                result += "\nToken Transfers:\n"
-                for i, transfer in enumerate(transaction["token_transfers"]):
-                    token = transfer.get("token", {})
-                    token_symbol = token.get("symbol", "Unknown")
-
-                    from_addr = transfer.get("from", {}).get("hash", "Unknown")
-                    to_addr = transfer.get("to", {}).get("hash", "Unknown")
-
-                    # Format token amount with proper decimals
-                    amount = transfer.get("total", {}).get("value", "0")
-                    decimals = int(transfer.get("total", {}).get("decimals", 18))
-                    try:
-                        formatted_amount = format_token_balance(amount, decimals)
-                    except (ValueError, TypeError):
-                        formatted_amount = amount
-
-                    result += f"  {i + 1}. {formatted_amount} {token_symbol} from {from_addr} to {to_addr}\n"
-
-            # Add decoded input if available
-            if "decoded_input" in transaction and transaction["decoded_input"]:
-                decoded = transaction["decoded_input"]
-                result += "\nDecoded Input:\n"
-                if "method_call" in decoded:
-                    result += f"Method Call: {decoded['method_call']}\n"
-
-                if "parameters" in decoded and decoded["parameters"]:
-                    result += "Parameters:\n"
-                    for param in decoded["parameters"]:
-                        name = param.get("name", "")
-                        type_ = param.get("type", "")
-                        value_ = param.get("value", "")
-
-                        # Format value if it's a token amount
-                        if (
-                            type_ == "uint256"
-                            and isinstance(value_, str)
-                            and value_.isdigit()
-                            and len(value_) > 10
-                        ):
-                            try:
-                                value_ = f"{format_token_balance(value_)} IP"
-                            except (ValueError, TypeError):
-                                pass
-
-                        result += f"  - {name}: {value_}\n"
-
-        # Add transaction type from interpretation data
+        # Extract token transfer information from the summary data if available
         if "data" in interpretation and interpretation["data"]:
+            debug_data = interpretation["data"].get("debug_data", {})
+            
+            # Extract token transfer information if available
+            if "summary_template" in debug_data and "transfer" in debug_data["summary_template"]:
+                transfer_data = debug_data["summary_template"]["transfer"]
+                
+                if "template_vars" in transfer_data:
+                    vars_data = transfer_data["template_vars"]
+                    
+                    # Add token transfer details if available
+                    if "tokenTransfers" in vars_data and vars_data["tokenTransfers"]:
+                        result += "\nToken Transfer Details:\n"
+                        
+                        for transfer in vars_data["tokenTransfers"]:
+                            token = transfer.get("token", {})
+                            token_symbol = token.get("symbol", "Unknown")
+                            
+                            from_addr = transfer.get("from", {}).get("hash", "Unknown")
+                            to_addr = transfer.get("to", {}).get("hash", "Unknown")
+                            
+                            # Format token amount
+                            amount = transfer.get("total", {}).get("value", "0")
+                            decimals = int(transfer.get("total", {}).get("decimals", 18))
+                            try:
+                                formatted_amount = format_token_balance(amount, decimals)
+                            except (ValueError, TypeError):
+                                formatted_amount = amount
+                                
+                            result += f"  {formatted_amount} {token_symbol} from {from_addr} to {to_addr}\n"
+            
+            # Add transaction type from interpretation data
             if "debug_data" in interpretation["data"]:
                 debug = interpretation["data"]["debug_data"]
                 if "model_classification_type" in debug:
-                    result += (
-                        f"\nTransaction Type: {debug['model_classification_type']}\n"
-                    )
+                    result += f"\nTransaction Type: {debug['model_classification_type']}\n"
 
         return result
     except Exception as e:
