@@ -382,7 +382,7 @@ class StoryscanService:
             logger.error(f"Error in get_nft_holdings: {str(e)}")
             raise Exception(f"Failed to get NFT holdings: {str(e)}")
 
-    def get_transaction_interpretation(self, tx_hash: str) -> dict:
+    def get_transaction_interpretation(self, tx_hash: str) -> TransactionInterpretation:
         """Get a human-readable interpretation of a transaction."""
         try:
             data = self._make_api_request(f"transactions/{tx_hash}/summary")
@@ -390,8 +390,16 @@ class StoryscanService:
             # Log the exact response for debugging
             logger.info(f"API Response for transaction {tx_hash}: {data}")
 
-            # Simply return the raw API response
-            return data
+            # Create a properly structured response
+            response = {
+                "success": data.get("success", False),
+                "data": data.get("data"),
+                "summaries": data.get("summaries", []),
+                "error": data.get("error")
+            }
+
+            # Return the structured response with all available data
+            return response
         except Exception as e:
             logger.error(f"Error in get_transaction_interpretation: {str(e)}")
             raise Exception(f"Failed to get transaction interpretation: {str(e)}")
