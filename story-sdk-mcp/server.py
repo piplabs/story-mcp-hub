@@ -97,26 +97,35 @@ def mint_license_tokens(
     licensor_ip_id: str,
     license_terms_id: int,
     receiver: str = None,
+    amount: int = 1,
     max_minting_fee: int = None,
     max_revenue_share: int = None,
+    license_template: str = None,
 ) -> str:
     """
     Mint license tokens for a given IP and license terms.
 
-    :param licensor_ip_id: The ID of the licensor's intellectual property
-    :param license_terms_id: The ID of the license terms
-    :param receiver: Optional; the recipient's address for the tokens
-    :param max_minting_fee: Optional; maximum fee for minting
-    :param max_revenue_share: Optional; maximum revenue share percentage
-    :return: Success message with transaction hash and token IDs
+    Args:
+        licensor_ip_id: The ID of the licensor's intellectual property
+        license_terms_id: The ID of the license terms
+        receiver: Optional; the recipient's address for the tokens
+        amount: Optional; number of license tokens to mint (defaults to 1)
+        max_minting_fee: Optional; maximum fee for minting
+        max_revenue_share: Optional; maximum revenue share percentage
+        license_template: Optional; address of the license template
+
+    Returns:
+        str: Success message with transaction hash and token IDs
     """
     try:
         response = story_service.mint_license_tokens(
             licensor_ip_id=licensor_ip_id,
             license_terms_id=license_terms_id,
             receiver=receiver,
+            amount=amount,
             max_minting_fee=max_minting_fee,
             max_revenue_share=max_revenue_share,
+            license_template=license_template,
         )
 
         return (
@@ -264,6 +273,202 @@ def create_spg_nft_collection(
         )
     except Exception as e:
         return f"Error creating SPG NFT collection: {str(e)}"
+
+
+@mcp.tool()
+def register(nft_contract: str, token_id: int, ip_metadata: dict = None) -> str:
+    """
+    Register an NFT as IP, creating a corresponding IP record.
+
+    Args:
+        nft_contract: The address of the NFT contract
+        token_id: The token identifier of the NFT
+        ip_metadata: Optional metadata for the IP
+            ip_metadata_uri: Optional metadata URI for the IP
+            ip_metadata_hash: Optional metadata hash for the IP
+            nft_metadata_uri: Optional metadata URI for the NFT
+            nft_metadata_hash: Optional metadata hash for the NFT
+
+    Returns:
+        str: Result message with transaction hash and IP ID
+    """
+    try:
+        result = story_service.register(
+            nft_contract=nft_contract,
+            token_id=token_id,
+            ip_metadata=ip_metadata
+        )
+        
+        if result.get('txHash'):
+            return f"Successfully registered NFT as IP. Transaction hash: {result['txHash']}, IP ID: {result['ipId']}"
+        else:
+            return f"NFT already registered as IP. IP ID: {result['ipId']}"
+    except Exception as e:
+        return f"Error registering NFT as IP: {str(e)}"
+
+
+@mcp.tool()
+def attach_license_terms(ip_id: str, license_terms_id: int, license_template: str = None) -> str:
+    """
+    Attaches license terms to an IP.
+
+    Args:
+        ip_id: The address of the IP to which the license terms are attached
+        license_terms_id: The ID of the license terms
+        license_template: Optional address of the license template (defaults to the default template)
+
+    Returns:
+        str: Result message with transaction hash
+    """
+    try:
+        result = story_service.attach_license_terms(
+            ip_id=ip_id,
+            license_terms_id=license_terms_id,
+            license_template=license_template
+        )
+        
+        return f"Successfully attached license terms to IP. Transaction hash: {result['txHash']}"
+    except Exception as e:
+        return f"Error attaching license terms: {str(e)}"
+
+
+@mcp.tool()
+def register_derivative(
+    child_ip_id: str,
+    parent_ip_ids: list,
+    license_terms_ids: list,
+    max_minting_fee: int = 0,
+    max_rts: int = 0,
+    max_revenue_share: int = 0,
+    license_template: str = None
+) -> str:
+    """
+    Registers a derivative directly with parent IP's license terms, without needing license tokens.
+
+    Args:
+        child_ip_id: The derivative IP ID
+        parent_ip_ids: The parent IP IDs (list of IP IDs)
+        license_terms_ids: The IDs of the license terms that the parent IP supports (list of term IDs)
+        max_minting_fee: The maximum minting fee that the caller is willing to pay (default: 0 = no limit)
+        max_rts: The maximum number of royalty tokens that can be distributed (max: 100,000,000)
+        max_revenue_share: The maximum revenue share percentage allowed (0-100,000,000)
+        license_template: Optional address of the license template (defaults to the default template)
+
+    Returns:
+        str: Result message with transaction hash
+    """
+    try:
+        # Validate inputs
+        if len(parent_ip_ids) != len(license_terms_ids):
+            return "Error: The number of parent IP IDs must match the number of license terms IDs."
+            
+        result = story_service.register_derivative(
+            child_ip_id=child_ip_id,
+            parent_ip_ids=parent_ip_ids,
+            license_terms_ids=license_terms_ids,
+            max_minting_fee=max_minting_fee,
+            max_rts=max_rts,
+            max_revenue_share=max_revenue_share,
+            license_template=license_template
+        )
+        
+        return f"Successfully registered derivative. Transaction hash: {result['txHash']}"
+    except Exception as e:
+        return f"Error registering derivative: {str(e)}"
+
+
+@mcp.tool()
+def pay_royalty_on_behalf(
+    receiver_ip_id: str,
+    payer_ip_id: str,
+    token: str,
+    amount: int
+) -> str:
+    """
+    Allows the function caller to pay royalties to the receiver IP asset on behalf of the payer IP asset.
+
+    Args:
+        receiver_ip_id: The IP ID that receives the royalties
+        payer_ip_id: The ID of the IP asset that pays the royalties
+        token: The token address to use to pay the royalties
+        amount: The amount to pay
+
+    Returns:
+        str: Result message with transaction hash
+    """
+    try:
+        result = story_service.pay_royalty_on_behalf(
+            receiver_ip_id=receiver_ip_id,
+            payer_ip_id=payer_ip_id,
+            token=token,
+            amount=amount
+        )
+        
+        return f"Successfully paid royalty. Transaction hash: {result['txHash']}"
+    except Exception as e:
+        return f"Error paying royalty: {str(e)}"
+
+
+@mcp.tool()
+def claim_revenue(
+    snapshot_ids: list,
+    child_ip_id: str,
+    token: str
+) -> str:
+    """
+    Allows token holders to claim revenue by a list of snapshot IDs based on the token balance at certain snapshot.
+
+    Args:
+        snapshot_ids: The list of snapshot IDs
+        child_ip_id: The child IP ID
+        token: The token address to claim
+
+    Returns:
+        str: Result message with transaction hash and claimed amount
+    """
+    try:
+        result = story_service.claim_revenue(
+            snapshot_ids=snapshot_ids,
+            child_ip_id=child_ip_id,
+            token=token
+        )
+        
+        return f"Successfully claimed revenue. Transaction hash: {result['txHash']}, Claimed amount: {result.get('claimableToken', 'Unknown')}"
+    except Exception as e:
+        return f"Error claiming revenue: {str(e)}"
+
+
+@mcp.tool()
+def raise_dispute(
+    target_ip_id: str,
+    dispute_evidence_hash: str,
+    target_tag: str,
+    data: str = "0x"
+) -> str:
+    """
+    Raises a dispute against an IP asset.
+
+    Args:
+        target_ip_id: The IP ID to dispute
+        dispute_evidence_hash: Hash or link to the evidence for the dispute
+        target_tag: Tag identifying the dispute type (e.g., "copyright", "trademark")
+        data: Optional additional data for the dispute
+
+    Returns:
+        str: Result message with transaction hash and dispute ID
+    """
+    try:
+        result = story_service.raise_dispute(
+            target_ip_id=target_ip_id,
+            dispute_evidence_hash=dispute_evidence_hash,
+            target_tag=target_tag,
+            data=data
+        )
+        
+        dispute_id = result.get('disputeId', 'Unknown')
+        return f"Successfully raised dispute. Transaction hash: {result['txHash']}, Dispute ID: {dispute_id}"
+    except Exception as e:
+        return f"Error raising dispute: {str(e)}"
 
 
 # @mcp.tool()

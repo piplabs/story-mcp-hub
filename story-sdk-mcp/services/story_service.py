@@ -121,43 +121,59 @@ class StoryService:
         amount: int = 1,
         max_minting_fee: int = None,
         max_revenue_share: int = None,
+        license_template: str = None
     ) -> dict:
         """
-        Mint license tokens for a specific IP and license terms.
+        Mints license tokens for the license terms attached to an IP.
 
         Args:
-            licensor_ip_id: The IP ID to mint licenses for
-            license_terms_id: The license terms ID to use
-            receiver: Address or domain name to receive the license tokens (defaults to caller)
-            amount: Number of license tokens to mint (defaults to 1)
-            max_minting_fee: Optional maximum minting fee
-            max_revenue_share: Optional maximum revenue share percentage (0-100,000,000)
+            licensor_ip_id: The licensor IP ID
+            license_terms_id: The ID of the license terms
+            receiver: Optional address of the receiver (defaults to sender)
+            amount: Optional amount of license tokens to mint (defaults to 1)
+            max_minting_fee: Optional maximum minting fee (defaults to 0)
+            max_revenue_share: Optional maximum revenue share percentage (defaults to 0)
+            license_template: Optional address of the license template (defaults to the default template)
+
+        Returns:
+            dict: Dictionary with the transaction hash and license token IDs
         """
         try:
-            # Resolve receiver address if provided
-            resolved_receiver = (
-                self.address_resolver.resolve_address(receiver)
-                if receiver
-                else self.account.address
+            # Use default license template if none provided
+            if license_template is None:
+                license_template = self.LICENSE_TEMPLATE
+            
+            # Use sender address if receiver not provided
+            if receiver is None:
+                receiver = self.account.address
+            
+            # Default values for max_minting_fee and max_revenue_share
+            if max_minting_fee is None:
+                max_minting_fee = 0
+                
+            if max_revenue_share is None:
+                max_revenue_share = 0
+            
+            # Ensure addresses are checksummed
+            license_template = self.web3.to_checksum_address(license_template)
+            receiver = self.web3.to_checksum_address(receiver)
+            
+            # Call the SDK function
+            result = self.client.License.mintLicenseTokens(
+                licensor_ip_id=licensor_ip_id,
+                license_template=license_template,
+                license_terms_id=license_terms_id,
+                amount=amount,
+                receiver=receiver,
+                max_minting_fee=max_minting_fee,
+                max_revenue_share=max_revenue_share
             )
-
-            # Build kwargs dict with only provided parameters
-            kwargs = {
-                "licensor_ip_id": licensor_ip_id,
-                "license_template": self.LICENSE_TEMPLATE,  # Use default template
-                "license_terms_id": license_terms_id,
-                "amount": amount,
-                "receiver": resolved_receiver,
+            
+            return {
+                'txHash': result.get('txHash'),
+                'licenseTokenIds': result.get('licenseTokenIds', [])
             }
-
-            if max_minting_fee is not None:
-                kwargs["max_minting_fee"] = max_minting_fee
-            if max_revenue_share is not None:
-                kwargs["max_revenue_share"] = max_revenue_share
-
-            response = self.client.License.mintLicenseTokens(**kwargs)
-            return response
-
+            
         except Exception as e:
             print(f"Error minting license tokens: {str(e)}")
             raise
@@ -642,3 +658,313 @@ class StoryService:
     #     except Exception as e:
     #         print(f"Error minting and registering NFT: {str(e)}")
     #         raise
+
+    def register(
+        self,
+        nft_contract: str,
+        token_id: int,
+        ip_metadata: dict = None,
+    ) -> dict:
+        """
+        Register an NFT as IP, creating a corresponding IP record.
+
+        Args:
+            nft_contract: The address of the NFT contract
+            token_id: The token identifier of the NFT
+            ip_metadata: Optional metadata for the IP
+                ip_metadata_uri: Optional metadata URI for the IP
+                ip_metadata_hash: Optional metadata hash for the IP
+                nft_metadata_uri: Optional metadata URI for the NFT
+                nft_metadata_hash: Optional metadata hash for the NFT
+
+        Returns:
+            dict: Dictionary with the transaction hash and IP ID
+        """
+        try:
+            # Ensure the contract address is checksummed
+            nft_contract = self.web3.to_checksum_address(nft_contract)
+            
+            # Prepare metadata if provided
+            metadata_dict = None
+            if ip_metadata:
+                metadata_dict = {
+                    'ip_metadata_uri': ip_metadata.get('ip_metadata_uri', ""),
+                    'ip_metadata_hash': ip_metadata.get('ip_metadata_hash', "0x0000000000000000000000000000000000000000000000000000000000000000"),
+                    'nft_metadata_uri': ip_metadata.get('nft_metadata_uri', ""),
+                    'nft_metadata_hash': ip_metadata.get('nft_metadata_hash', "0x0000000000000000000000000000000000000000000000000000000000000000"),
+                }
+            
+            # Call the SDK function
+            result = self.client.IPAsset.register(
+                nft_contract=nft_contract,
+                token_id=token_id,
+                ip_metadata=metadata_dict
+            )
+            
+            return {
+                'txHash': result.get('txHash'),
+                'ipId': result.get('ipId')
+            }
+            
+        except Exception as e:
+            print(f"Error registering NFT as IP: {str(e)}")
+            raise
+
+    def attach_license_terms(
+        self,
+        ip_id: str,
+        license_terms_id: int,
+        license_template: str = None
+    ) -> dict:
+        """
+        Attaches license terms to an IP.
+
+        Args:
+            ip_id: The address of the IP to which the license terms are attached
+            license_terms_id: The ID of the license terms
+            license_template: Optional address of the license template (defaults to the default template)
+
+        Returns:
+            dict: Dictionary with the transaction hash
+        """
+        try:
+            # Use default license template if none provided
+            if license_template is None:
+                license_template = self.LICENSE_TEMPLATE
+            
+            # Ensure the license template address is checksummed
+            license_template = self.web3.to_checksum_address(license_template)
+            
+            # Call the SDK function
+            result = self.client.License.attachLicenseTerms(
+                ip_id=ip_id,
+                license_template=license_template,
+                license_terms_id=license_terms_id
+            )
+            
+            return {
+                'txHash': result.get('txHash')
+            }
+            
+        except Exception as e:
+            print(f"Error attaching license terms: {str(e)}")
+            raise
+
+    def register_derivative(
+        self,
+        child_ip_id: str,
+        parent_ip_ids: list,
+        license_terms_ids: list,
+        max_minting_fee: int = 0,
+        max_rts: int = 0,
+        max_revenue_share: int = 0,
+        license_template: str = None
+    ) -> dict:
+        """
+        Registers a derivative directly with parent IP's license terms, without needing license tokens.
+
+        Args:
+            child_ip_id: The derivative IP ID
+            parent_ip_ids: The parent IP IDs
+            license_terms_ids: The IDs of the license terms that the parent IP supports
+            max_minting_fee: The maximum minting fee that the caller is willing to pay (default: 0 = no limit)
+            max_rts: The maximum number of royalty tokens that can be distributed (max: 100,000,000)
+            max_revenue_share: The maximum revenue share percentage allowed (0-100,000,000)
+            license_template: Optional address of the license template (defaults to the default template)
+
+        Returns:
+            dict: Dictionary with the transaction hash
+        """
+        try:
+            # Use default license template if none provided
+            if license_template is None:
+                license_template = self.LICENSE_TEMPLATE
+            
+            # Ensure the license template address is checksummed
+            license_template = self.web3.to_checksum_address(license_template)
+            
+            # Call the SDK function
+            result = self.client.IPAsset.registerDerivative(
+                child_ip_id=child_ip_id,
+                parent_ip_ids=parent_ip_ids,
+                license_terms_ids=license_terms_ids,
+                max_minting_fee=max_minting_fee,
+                max_rts=max_rts,
+                max_revenue_share=max_revenue_share,
+                license_template=license_template
+            )
+            
+            return {
+                'txHash': result.get('txHash')
+            }
+            
+        except Exception as e:
+            print(f"Error registering derivative: {str(e)}")
+            raise
+
+    def pay_royalty_on_behalf(
+        self,
+        receiver_ip_id: str,
+        payer_ip_id: str,
+        token: str,
+        amount: int
+    ) -> dict:
+        """
+        Allows the function caller to pay royalties to the receiver IP asset on behalf of the payer IP asset.
+
+        Args:
+            receiver_ip_id: The IP ID that receives the royalties
+            payer_ip_id: The ID of the IP asset that pays the royalties
+            token: The token address to use to pay the royalties
+            amount: The amount to pay
+
+        Returns:
+            dict: Dictionary with the transaction hash
+        """
+        try:
+            # Ensure the token address is checksummed
+            token = self.web3.to_checksum_address(token)
+            
+            # Call the SDK function
+            result = self.client.Royalty.payRoyaltyOnBehalf(
+                receiver_ip_id=receiver_ip_id,
+                payer_ip_id=payer_ip_id,
+                token=token,
+                amount=amount
+            )
+            
+            return {
+                'txHash': result.get('txHash')
+            }
+            
+        except Exception as e:
+            print(f"Error paying royalty: {str(e)}")
+            raise
+
+    def claim_revenue(
+        self,
+        snapshot_ids: list,
+        child_ip_id: str,
+        token: str
+    ) -> dict:
+        """
+        Allows token holders to claim revenue by a list of snapshot IDs based on the token balance at certain snapshot.
+
+        Args:
+            snapshot_ids: The list of snapshot IDs
+            child_ip_id: The child IP ID
+            token: The token address to claim
+
+        Returns:
+            dict: Dictionary with the transaction hash and the number of claimable tokens
+        """
+        try:
+            # Ensure the token address is checksummed
+            token = self.web3.to_checksum_address(token)
+            
+            # Call the SDK function
+            result = self.client.Royalty.claimRevenue(
+                snapshot_ids=snapshot_ids,
+                child_ip_id=child_ip_id,
+                token=token
+            )
+            
+            return {
+                'txHash': result.get('txHash'),
+                'claimableToken': result.get('claimableToken')
+            }
+            
+        except Exception as e:
+            print(f"Error claiming revenue: {str(e)}")
+            raise
+
+    def raise_dispute(
+        self,
+        target_ip_id: str,
+        dispute_evidence_hash: str,
+        target_tag: str,
+        data: str = "0x"
+    ) -> dict:
+        """
+        Raises a dispute against an IP asset.
+
+        Args:
+            target_ip_id: The IP ID to dispute
+            dispute_evidence_hash: Hash of the evidence for the dispute
+            target_tag: Tag identifying the dispute type
+            data: Optional additional data for the dispute
+
+        Returns:
+            dict: Dictionary with the transaction hash and dispute ID
+        """
+        try:
+            # Get the DisputeModule client
+            dispute_module_address = self.contracts.get("DisputeModule")
+            if not dispute_module_address:
+                raise ValueError("DisputeModule address not found in contracts")
+                
+            from story_protocol_python_sdk.abi.DisputeModule.DisputeModule_client import DisputeModuleClient
+            dispute_module_client = DisputeModuleClient(self.web3, contract_address=dispute_module_address)
+            
+            # Convert target_tag to bytes32 if it's a string
+            if isinstance(target_tag, str) and not target_tag.startswith("0x"):
+                target_tag_bytes = self.web3.keccak(text=target_tag)
+            else:
+                target_tag_bytes = target_tag
+                
+            # Convert data to bytes if it's a string
+            if isinstance(data, str) and data.startswith("0x"):
+                data_bytes = self.web3.to_bytes(hexstr=data)
+            else:
+                data_bytes = data
+            
+            # Build and send transaction
+            from story_protocol_python_sdk.utils.transaction_utils import build_and_send_transaction
+            response = build_and_send_transaction(
+                self.web3,
+                self.account,
+                dispute_module_client.build_raiseDispute_transaction,
+                target_ip_id,
+                dispute_evidence_hash,
+                target_tag_bytes,
+                data_bytes
+            )
+            
+            # Parse dispute ID from logs (this would need to be implemented)
+            dispute_id = self._parse_dispute_id_from_logs(response['txReceipt'])
+            
+            return {
+                'txHash': response['txHash'],
+                'disputeId': dispute_id
+            }
+            
+        except Exception as e:
+            print(f"Error raising dispute: {str(e)}")
+            raise
+            
+    def _parse_dispute_id_from_logs(self, tx_receipt: dict) -> int:
+        """
+        Parse the dispute ID from transaction logs.
+        
+        Args:
+            tx_receipt: The transaction receipt
+            
+        Returns:
+            int: The dispute ID
+        """
+        # This is a placeholder implementation
+        # In a real implementation, we would look for the DisputeRaised event
+        # and extract the dispute ID from it
+        try:
+            event_signature = self.web3.keccak(text="DisputeRaised(uint256,address,bytes32,string)").hex()
+            
+            for log in tx_receipt['logs']:
+                if log.get('topics') and log['topics'][0].hex() == event_signature:
+                    # Extract dispute ID from the first topic after the event signature
+                    dispute_id = int(log['topics'][1].hex(), 16)
+                    return dispute_id
+                    
+            return 0  # Return 0 if no dispute ID found
+        except Exception as e:
+            print(f"Error parsing dispute ID: {str(e)}")
+            return 0
