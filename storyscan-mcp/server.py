@@ -662,12 +662,21 @@ def interpret_transaction(transaction_hash: str) -> str:
                                 and "hash" in var_data["value"]
                             ):
                                 formatted_values[key] = var_data["value"]["hash"]
+                                # Add name if available
+                                if "name" in var_data["value"] and var_data["value"]["name"]:
+                                    formatted_values[key] = f"{var_data['value']['name']} ({var_data['value']['hash']})"
                             elif (
                                 var_data["type"] == "token"
                                 and "value" in var_data
-                                and "symbol" in var_data["value"]
                             ):
-                                formatted_values[key] = var_data["value"]["symbol"]
+                                # For token type, include both name and symbol
+                                token_info = var_data["value"]
+                                if "name" in token_info and "symbol" in token_info:
+                                    formatted_values[key] = f"{token_info['name']} ({token_info['symbol']})"
+                                elif "symbol" in token_info:
+                                    formatted_values[key] = token_info["symbol"]
+                                else:
+                                    formatted_values[key] = token_info.get("address", "Unknown Token")
                             elif var_data["type"] == "currency" and "value" in var_data:
                                 # Format currency values with proper decimals
                                 try:
@@ -710,112 +719,124 @@ def interpret_transaction(transaction_hash: str) -> str:
             if "summary_template" in debug_data:
                 summary_template = debug_data["summary_template"]
                 
-                # Handle swap transactions
-                if "swap" in summary_template:
-                    swap_data = summary_template["swap"]
-                    result += "Swap Details:\n"
-                    
-                    # Extract method called
-                    if "template_vars" in swap_data:
-                        vars_data = swap_data["template_vars"]
+                # Generic handler for all transaction types
+                for template_type, template_data in summary_template.items():
+                    if "template_vars" in template_data:
+                        vars_data = template_data["template_vars"]
                         
-                        # Add method information
-                        if "methodCalled" in vars_data:
-                            result += f"Method: {vars_data['methodCalled']}\n"
+                        # Add transaction details section
+                        result += f"{template_type.capitalize()} Transaction Details:\n"
                         
-                        # Add token information
-                        if "tokenTransfers" in vars_data and vars_data["tokenTransfers"]:
-                            result += "\nToken Transfer Details:\n"
-                            
-                            for transfer in vars_data["tokenTransfers"]:
-                                # Extract token information
-                                token = transfer.get("token", {})
-                                token_name = token.get("name", "Unknown")
-                                token_symbol = token.get("symbol", "Unknown")
-                                token_type = token.get("type", "Unknown")
-                                token_address = token.get("address", "Unknown")
-                                token_holders = token.get("holders", "Unknown")
-                                token_supply = token.get("total_supply", "Unknown")
-                                
-                                # Extract transfer details
-                                from_addr = transfer.get("from", {}).get("hash", "Unknown")
-                                to_addr = transfer.get("to", {}).get("hash", "Unknown")
-                                
-                                # Format token ID or amount based on token type
-                                if token_type in ["ERC-721", "ERC-1155"]:
-                                    token_id = transfer.get("total", {}).get("token_id", "Unknown")
-                                    result += f"  NFT Transfer: {token_name} ({token_symbol}) Token ID #{token_id}\n"
-                                    result += f"  From: {from_addr}\n"
-                                    result += f"  To: {to_addr}\n"
-                                else:
-                                    # Format token amount for fungible tokens
-                                    amount = transfer.get("total", {}).get("value", "0")
-                                    decimals = int(token.get("decimals", 18))
-                                    try:
-                                        formatted_amount = format_token_balance(amount, decimals)
-                                    except (ValueError, TypeError):
-                                        formatted_amount = amount
-                                    
-                                    result += f"  Token Transfer: {formatted_amount} {token_symbol}\n"
-                                
-                                # Add token details
+                        # Extract and add all available information from template_vars
+                        for key, value in vars_data.items():
+                            # Handle token information
+                            if key == "token" and isinstance(value, dict):
+                                token = value
                                 result += f"\nToken Information:\n"
-                                result += f"  Name: {token_name}\n"
-                                result += f"  Symbol: {token_symbol}\n"
-                                result += f"  Type: {token_type}\n"
-                                result += f"  Address: {token_address}\n"
-                                result += f"  Holders: {token_holders}\n"
-                                result += f"  Total Supply: {token_supply}\n"
-                
-                # Handle transfer transactions
-                elif "transfer" in summary_template:
-                    transfer_data = summary_template["transfer"]
-                    
-                    if "template_vars" in transfer_data:
-                        vars_data = transfer_data["template_vars"]
-                        
-                        # Add token transfer details if available
-                        if "tokenTransfers" in vars_data and vars_data["tokenTransfers"]:
-                            result += "\nToken Transfer Details:\n"
+                                result += f"  Name: {token.get('name', 'Unknown')}\n"
+                                result += f"  Symbol: {token.get('symbol', 'Unknown')}\n"
+                                result += f"  Type: {token.get('type', 'Unknown')}\n"
+                                result += f"  Address: {token.get('address', 'Unknown')}\n"
+                                result += f"  Holders: {token.get('holders', 'Unknown')}\n"
+                                result += f"  Total Supply: {token.get('total_supply', 'Unknown')}\n"
+                                if token.get("decimals"):
+                                    result += f"  Decimals: {token.get('decimals')}\n"
                             
-                            for transfer in vars_data["tokenTransfers"]:
-                                token = transfer.get("token", {})
-                                token_name = token.get("name", "Unknown")
-                                token_symbol = token.get("symbol", "Unknown")
-                                token_type = token.get("type", "Unknown")
-                                token_address = token.get("address", "Unknown")
-                                token_holders = token.get("holders", "Unknown")
-                                token_supply = token.get("total_supply", "Unknown")
+                            # Handle address information (like trade address for approvals)
+                            elif key.endswith("Address") and isinstance(value, dict) and "hash" in value:
+                                address_type = key.replace("Address", "").capitalize()
+                                result += f"\n{address_type} Address: {value.get('hash')}\n"
+                                if "name" in value and value["name"]:
+                                    result += f"  Name: {value['name']}\n"
+                                if "is_contract" in value:
+                                    result += f"  Is Contract: {value['is_contract']}\n"
+                            
+                            # Handle action type information
+                            elif key == "actionType" or key == "actionTypeFromData":
+                                result += f"Action: {value}\n"
+                            
+                            # Handle decoded approval event
+                            elif key == "decodedApprovalEvent" and isinstance(value, dict):
+                                result += f"\nApproval Details:\n"
                                 
-                                from_addr = transfer.get("from", {}).get("hash", "Unknown")
-                                to_addr = transfer.get("to", {}).get("hash", "Unknown")
-                                
-                                # Format token ID or amount based on token type
-                                if token_type in ["ERC-721", "ERC-1155"]:
-                                    token_id = transfer.get("total", {}).get("token_id", "Unknown")
-                                    result += f"  NFT Transfer: {token_name} ({token_symbol}) Token ID #{token_id}\n"
-                                else:
-                                    # Format token amount for fungible tokens
-                                    amount = transfer.get("total", {}).get("value", "0")
-                                    decimals = int(token.get("decimals", 18))
-                                    try:
-                                        formatted_amount = format_token_balance(amount, decimals)
-                                    except (ValueError, TypeError):
-                                        formatted_amount = amount
+                                # Add decoded method information
+                                if "decoded" in value and isinstance(value["decoded"], dict):
+                                    decoded = value["decoded"]
+                                    result += f"  Method: {decoded.get('method_call', 'Unknown')}\n"
                                     
-                                    result += f"  Token Transfer: {formatted_amount} {token_symbol}\n"
+                                    # Add parameters
+                                    if "parameters" in decoded and isinstance(decoded["parameters"], list):
+                                        result += f"  Parameters:\n"
+                                        for param in decoded["parameters"]:
+                                            param_name = param.get("name", "Unknown")
+                                            param_type = param.get("type", "Unknown")
+                                            param_value = param.get("value", "Unknown")
+                                            
+                                            # Format value if it's a max uint256 (unlimited approval)
+                                            if (param_type == "uint256" and 
+                                                isinstance(param_value, str) and 
+                                                param_value.startswith("115792089237316195423570985008687907853269984665640564039457584007")):
+                                                param_value = "Unlimited"
+                                            
+                                            result += f"    {param_name} ({param_type}): {param_value}\n"
+                            
+                            # Handle token transfers
+                            elif key == "tokenTransfers" and isinstance(value, list):
+                                result += f"\nToken Transfer Details:\n"
                                 
-                                result += f"  From: {from_addr}\n"
-                                result += f"  To: {to_addr}\n"
-                                
-                                # Add token details
-                                result += f"\nToken Information:\n"
-                                result += f"  Name: {token_name}\n"
-                                result += f"  Symbol: {token_symbol}\n"
-                                result += f"  Type: {token_type}\n"
-                                result += f"  Address: {token_address}\n"
-                                result += f"  Holders: {token_holders}\n"
-                                result += f"  Total Supply: {token_supply}\n"
+                                for transfer in value:
+                                    # Extract token information
+                                    token = transfer.get("token", {})
+                                    token_name = token.get("name", "Unknown")
+                                    token_symbol = token.get("symbol", "Unknown")
+                                    token_type = token.get("type", "Unknown")
+                                    token_address = token.get("address", "Unknown")
+                                    token_holders = token.get("holders", "Unknown")
+                                    token_supply = token.get("total_supply", "Unknown")
+                                    
+                                    # Extract transfer details
+                                    from_addr = transfer.get("from", {}).get("hash", "Unknown")
+                                    to_addr = transfer.get("to", {}).get("hash", "Unknown")
+                                    
+                                    # Format token ID or amount based on token type
+                                    if token_type in ["ERC-721", "ERC-1155"]:
+                                        token_id = transfer.get("total", {}).get("token_id", "Unknown")
+                                        result += f"  NFT Transfer: {token_name} ({token_symbol}) Token ID #{token_id}\n"
+                                        result += f"  From: {from_addr}\n"
+                                        result += f"  To: {to_addr}\n"
+                                    else:
+                                        # Format token amount for fungible tokens
+                                        amount = transfer.get("total", {}).get("value", "0")
+                                        decimals = int(token.get("decimals", 18))
+                                        try:
+                                            formatted_amount = format_token_balance(amount, decimals)
+                                        except (ValueError, TypeError):
+                                            formatted_amount = amount
+                                        
+                                        result += f"  Token Transfer: {formatted_amount} {token_symbol}\n"
+                                        result += f"  From: {from_addr}\n"
+                                        result += f"  To: {to_addr}\n"
+                                    
+                                    # Add token details
+                                    result += f"\n  Token Information:\n"
+                                    result += f"    Name: {token_name}\n"
+                                    result += f"    Symbol: {token_symbol}\n"
+                                    result += f"    Type: {token_type}\n"
+                                    result += f"    Address: {token_address}\n"
+                                    result += f"    Holders: {token_holders}\n"
+                                    result += f"    Total Supply: {token_supply}\n"
+                            
+                            # Handle method called
+                            elif key == "methodCalled":
+                                result += f"Method: {value}\n"
+                            
+                            # Handle other simple key-value pairs
+                            elif not isinstance(value, (dict, list)):
+                                # Format the key for better readability
+                                formatted_key = ' '.join(word.capitalize() for word in key.split('_'))
+                                formatted_key = ''.join(word[0].upper() + word[1:] for word in formatted_key.split(' '))
+                                formatted_key = formatted_key[0].upper() + formatted_key[1:]
+                                result += f"{formatted_key}: {value}\n"
             
             # Add any additional information from the debug data
             if "lastTransfer" in debug_data:
