@@ -240,7 +240,12 @@ code ~/Library/Application\ Support/Claude/claude_desktop_config.json
         "~/path/to/story-mcp-hub/storyscan-mcp",
         "run",
         "server.py"
-      ]
+      ],
+      // Add environment variables for the server
+      "env": {
+        "STORY_API_KEY": "your_story_api_key_here",
+        "STORYSCAN_API_ENDPOINT": "your_story_api_endpoint_here"
+      }
     },
     "story-sdk-mcp": {
       "command": "uv",
@@ -249,7 +254,13 @@ code ~/Library/Application\ Support/Claude/claude_desktop_config.json
         "~/path/to/story-mcp-hub/story-sdk-mcp",
         "run",
         "server.py"
-      ]
+      ],
+      // Add environment variables for the server
+      "env": {
+        "WALLET_PRIVATE_KEY": "your_private_key_here",
+        "RPC_PROVIDER_URL": "your_rpc_provider_url_here",
+        "PINATA_JWT": "your_pinata_jwt_here"
+      }
     }
   }
 }
