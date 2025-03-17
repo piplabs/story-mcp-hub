@@ -633,261 +633,264 @@ def interpret_transaction(transaction_hash: str) -> str:
         str: A human-readable summary of the transaction
     """
     try:
-        # Get the interpretation from the service (only using the summary endpoint)
+        # Get the interpretation from the service
         interpretation = story_service.get_transaction_interpretation(transaction_hash)
 
         # Start with a header
         result = f"Transaction Interpretation for {transaction_hash}:\n\n"
 
-        # Check if the response contains summaries
+        # PART 1: EXTRACT ALL SUMMARY INFORMATION
         if "summaries" in interpretation and interpretation["summaries"]:
+            result += "TRANSACTION SUMMARIES:\n"
             # Extract and format each summary
             for i, summary in enumerate(interpretation["summaries"]):
-                if (
-                    "summary_template" in summary
-                    and "summary_template_variables" in summary
-                ):
-                    # Get the template and variables
-                    template = summary["summary_template"]
+                result += f"Summary #{i+1}:\n"
+                
+                # Add the raw template
+                if "summary_template" in summary:
+                    result += f"Template: {summary['summary_template']}\n"
+                
+                # Process all template variables in detail
+                if "summary_template_variables" in summary:
+                    result += "Template Variables:\n"
                     variables = summary["summary_template_variables"]
-
-                    # Try to format the template with the variables
-                    try:
-                        # Extract values from the variables
-                        formatted_values = {}
-                        for key, var_data in variables.items():
-                            if (
-                                var_data["type"] == "address"
-                                and "value" in var_data
-                                and "hash" in var_data["value"]
-                            ):
-                                formatted_values[key] = var_data["value"]["hash"]
-                                # Add name if available
-                                if "name" in var_data["value"] and var_data["value"]["name"]:
-                                    formatted_values[key] = f"{var_data['value']['name']} ({var_data['value']['hash']})"
-                            elif (
-                                var_data["type"] == "token"
-                                and "value" in var_data
-                            ):
-                                # For token type, include both name and symbol
+                    
+                    for key, var_data in variables.items():
+                        var_type = var_data.get("type", "unknown")
+                        result += f"  {key} ({var_type}):\n"
+                        
+                        if "value" in var_data:
+                            # Handle different variable types
+                            if var_type == "address" and isinstance(var_data["value"], dict):
+                                addr_info = var_data["value"]
+                                result += f"    Hash: {addr_info.get('hash', 'Unknown')}\n"
+                                
+                                # Include ALL address properties
+                                for addr_key, addr_value in addr_info.items():
+                                    if addr_key != "hash" and addr_value not in (None, "", [], {}):
+                                        if isinstance(addr_value, dict):
+                                            result += f"    {addr_key}: {str(addr_value)}\n"
+                                        elif isinstance(addr_value, list) and addr_value:
+                                            result += f"    {addr_key}: {str(addr_value)}\n"
+                                        else:
+                                            result += f"    {addr_key}: {addr_value}\n"
+                            
+                            elif var_type == "token" and isinstance(var_data["value"], dict):
                                 token_info = var_data["value"]
-                                if "name" in token_info and "symbol" in token_info:
-                                    formatted_values[key] = f"{token_info['name']} ({token_info['symbol']})"
-                                elif "symbol" in token_info:
-                                    formatted_values[key] = token_info["symbol"]
-                                else:
-                                    formatted_values[key] = token_info.get("address", "Unknown Token")
-                            elif var_data["type"] == "currency" and "value" in var_data:
-                                # Format currency values with proper decimals
+                                result += f"    Name: {token_info.get('name', 'Unknown')}\n"
+                                result += f"    Symbol: {token_info.get('symbol', 'Unknown')}\n"
+                                
+                                # Include ALL token properties
+                                for token_key, token_value in token_info.items():
+                                    if token_key not in ("name", "symbol") and token_value not in (None, "", [], {}):
+                                        result += f"    {token_key}: {token_value}\n"
+                            
+                            elif var_type == "currency":
+                                # Format currency with proper decimals if possible
                                 try:
-                                    token_info = variables.get("token", {}).get(
-                                        "value", {}
-                                    )
+                                    token_info = variables.get("token", {}).get("value", {})
                                     decimals = int(token_info.get("decimals", 18))
                                     raw_value = var_data["value"]
-                                    formatted_value = format_token_balance(
-                                        raw_value, decimals
-                                    )
-                                    formatted_values[key] = formatted_value
+                                    formatted_value = format_token_balance(raw_value, decimals)
+                                    result += f"    Value: {formatted_value}\n"
+                                    result += f"    Raw Value: {raw_value}\n"
                                 except (ValueError, TypeError):
-                                    formatted_values[key] = var_data["value"]
-                            elif "value" in var_data:
+                                    result += f"    Value: {var_data['value']}\n"
+                            
+                            else:
+                                # For all other types, just show the value
+                                result += f"    Value: {var_data['value']}\n"
+                
+                # Add formatted summary
+                try:
+                    template = summary["summary_template"]
+                    variables = summary["summary_template_variables"]
+                    formatted_values = {}
+                    
+                    for key, var_data in variables.items():
+                        if var_data["type"] == "address" and "value" in var_data and "hash" in var_data["value"]:
+                            addr_info = var_data["value"]
+                            if "name" in addr_info and addr_info["name"]:
+                                formatted_values[key] = f"{addr_info['name']} ({addr_info['hash']})"
+                            else:
+                                formatted_values[key] = addr_info["hash"]
+                        
+                        elif var_data["type"] == "token" and "value" in var_data:
+                            token_info = var_data["value"]
+                            if "name" in token_info and "symbol" in token_info:
+                                formatted_values[key] = f"{token_info['name']} ({token_info['symbol']})"
+                            elif "symbol" in token_info:
+                                formatted_values[key] = token_info["symbol"]
+                            else:
+                                formatted_values[key] = token_info.get("address", "Unknown Token")
+                        
+                        elif var_data["type"] == "currency" and "value" in var_data:
+                            try:
+                                token_info = variables.get("token", {}).get("value", {})
+                                decimals = int(token_info.get("decimals", 18))
+                                raw_value = var_data["value"]
+                                formatted_values[key] = format_token_balance(raw_value, decimals)
+                            except (ValueError, TypeError):
                                 formatted_values[key] = var_data["value"]
+                        
+                        elif "value" in var_data:
+                            formatted_values[key] = var_data["value"]
+                    
+                    # Replace placeholders in the template
+                    formatted_summary = template
+                    for key, value in formatted_values.items():
+                        formatted_summary = formatted_summary.replace(f"{{{key}}}", str(value))
+                    
+                    result += f"Formatted Summary: {formatted_summary}\n"
+                except Exception as e:
+                    result += f"Could not format summary: {str(e)}\n"
+                
+                result += "\n"
 
-                        # Replace placeholders in the template
-                        formatted_summary = template
-                        for key, value in formatted_values.items():
-                            formatted_summary = formatted_summary.replace(
-                                f"{{{key}}}", str(value)
-                            )
-
-                        result += f"{formatted_summary}\n\n"
-                    except Exception as e:
-                        result += f"Could not format summary: {str(e)}\n\n"
-
-        # Extract detailed information from the data field
+        # PART 2: EXTRACT ALL DATA AND DEBUG DATA
         if "data" in interpretation and interpretation["data"]:
             data = interpretation["data"]
-            debug_data = data.get("debug_data", {})
+            result += "TRANSACTION DATA:\n"
             
-            # Add transaction type from interpretation data
-            if "model_classification_type" in debug_data:
-                tx_type = debug_data["model_classification_type"]
-                result += f"Transaction Type: {tx_type}\n\n"
-            
-            # Process based on transaction type
-            if "summary_template" in debug_data:
-                summary_template = debug_data["summary_template"]
+            # Extract debug data
+            if "debug_data" in data:
+                debug_data = data["debug_data"]
+                result += "Debug Data:\n"
                 
-                # Generic handler for all transaction types
-                for template_type, template_data in summary_template.items():
-                    if "template_vars" in template_data:
-                        vars_data = template_data["template_vars"]
-                        
-                        # Add transaction details section
-                        result += f"{template_type.capitalize()} Transaction Details:\n"
-                        
-                        # Extract and add all available information from template_vars
-                        for key, value in vars_data.items():
-                            # Handle token information
-                            if key == "token" and isinstance(value, dict):
-                                token = value
-                                result += f"\nToken Information:\n"
-                                result += f"  Name: {token.get('name', 'Unknown')}\n"
-                                result += f"  Symbol: {token.get('symbol', 'Unknown')}\n"
-                                result += f"  Type: {token.get('type', 'Unknown')}\n"
-                                result += f"  Address: {token.get('address', 'Unknown')}\n"
-                                result += f"  Holders: {token.get('holders', 'Unknown')}\n"
-                                result += f"  Total Supply: {token.get('total_supply', 'Unknown')}\n"
-                                if token.get("decimals"):
-                                    result += f"  Decimals: {token.get('decimals')}\n"
-                            
-                            # Handle address information (like trade address for approvals)
-                            elif key.endswith("Address") and isinstance(value, dict) and "hash" in value:
-                                address_type = key.replace("Address", "").capitalize()
-                                result += f"\n{address_type} Address: {value.get('hash')}\n"
-                                if "name" in value and value["name"]:
-                                    result += f"  Name: {value['name']}\n"
-                                if "is_contract" in value:
-                                    result += f"  Is Contract: {value['is_contract']}\n"
-                            
-                            # Handle action type information
-                            elif key == "actionType" or key == "actionTypeFromData":
-                                result += f"Action: {value}\n"
-                            
-                            # Handle decoded approval event
-                            elif key == "decodedApprovalEvent" and isinstance(value, dict):
-                                result += f"\nApproval Details:\n"
-                                
-                                # Add decoded method information
-                                if "decoded" in value and isinstance(value["decoded"], dict):
-                                    decoded = value["decoded"]
-                                    result += f"  Method: {decoded.get('method_call', 'Unknown')}\n"
-                                    
-                                    # Add parameters
-                                    if "parameters" in decoded and isinstance(decoded["parameters"], list):
-                                        result += f"  Parameters:\n"
-                                        for param in decoded["parameters"]:
-                                            param_name = param.get("name", "Unknown")
-                                            param_type = param.get("type", "Unknown")
-                                            param_value = param.get("value", "Unknown")
-                                            
-                                            # Format value if it's a max uint256 (unlimited approval)
-                                            if (param_type == "uint256" and 
-                                                isinstance(param_value, str) and 
-                                                param_value.startswith("115792089237316195423570985008687907853269984665640564039457584007")):
-                                                param_value = "Unlimited"
-                                            
-                                            result += f"    {param_name} ({param_type}): {param_value}\n"
-                            
-                            # Handle token transfers
-                            elif key == "tokenTransfers" and isinstance(value, list):
-                                result += f"\nToken Transfer Details:\n"
-                                
-                                for transfer in value:
-                                    # Extract token information
-                                    token = transfer.get("token", {})
-                                    token_name = token.get("name", "Unknown")
-                                    token_symbol = token.get("symbol", "Unknown")
-                                    token_type = token.get("type", "Unknown")
-                                    token_address = token.get("address", "Unknown")
-                                    token_holders = token.get("holders", "Unknown")
-                                    token_supply = token.get("total_supply", "Unknown")
-                                    
-                                    # Extract transfer details
-                                    from_addr = transfer.get("from", {}).get("hash", "Unknown")
-                                    to_addr = transfer.get("to", {}).get("hash", "Unknown")
-                                    
-                                    # Format token ID or amount based on token type
-                                    if token_type in ["ERC-721", "ERC-1155"]:
-                                        token_id = transfer.get("total", {}).get("token_id", "Unknown")
-                                        result += f"  NFT Transfer: {token_name} ({token_symbol}) Token ID #{token_id}\n"
-                                        result += f"  From: {from_addr}\n"
-                                        result += f"  To: {to_addr}\n"
-                                    else:
-                                        # Format token amount for fungible tokens
-                                        amount = transfer.get("total", {}).get("value", "0")
-                                        decimals = int(token.get("decimals", 18))
-                                        try:
-                                            formatted_amount = format_token_balance(amount, decimals)
-                                        except (ValueError, TypeError):
-                                            formatted_amount = amount
-                                        
-                                        result += f"  Token Transfer: {formatted_amount} {token_symbol}\n"
-                                        result += f"  From: {from_addr}\n"
-                                        result += f"  To: {to_addr}\n"
-                                    
-                                    # Add token details
-                                    result += f"\n  Token Information:\n"
-                                    result += f"    Name: {token_name}\n"
-                                    result += f"    Symbol: {token_symbol}\n"
-                                    result += f"    Type: {token_type}\n"
-                                    result += f"    Address: {token_address}\n"
-                                    result += f"    Holders: {token_holders}\n"
-                                    result += f"    Total Supply: {token_supply}\n"
-                            
-                            # Handle method called
-                            elif key == "methodCalled":
-                                result += f"Method: {value}\n"
-                            
-                            # Handle other simple key-value pairs
-                            elif not isinstance(value, (dict, list)):
-                                # Format the key for better readability
-                                formatted_key = ' '.join(word.capitalize() for word in key.split('_'))
-                                formatted_key = ''.join(word[0].upper() + word[1:] for word in formatted_key.split(' '))
-                                formatted_key = formatted_key[0].upper() + formatted_key[1:]
-                                result += f"{formatted_key}: {value}\n"
-            
-            # Add any additional information from the debug data
-            if "lastTransfer" in debug_data:
-                last_transfer = debug_data["lastTransfer"]
-                result += "\nLast Transfer Information:\n"
-                
-                if "from" in last_transfer and "hash" in last_transfer["from"]:
-                    result += f"  From: {last_transfer['from']['hash']}\n"
-                
-                if "to" in last_transfer and "hash" in last_transfer["to"]:
-                    result += f"  To: {last_transfer['to']['hash']}\n"
-                
-                if "token" in last_transfer:
-                    token = last_transfer["token"]
-                    result += f"  Token: {token.get('name', 'Unknown')} ({token.get('symbol', 'Unknown')})\n"
-                    result += f"  Token Type: {token.get('type', 'Unknown')}\n"
-                    result += f"  Token Holders: {token.get('holders', 'Unknown')}\n"
-                    result += f"  Token Supply: {token.get('total_supply', 'Unknown')}\n"
-                
-                if "total" in last_transfer and "token_id" in last_transfer["total"]:
-                    result += f"  Token ID: {last_transfer['total']['token_id']}\n"
-
-        # If no detailed information was found, provide a basic summary
-        if len(result.strip().split('\n')) <= 2:  # Only header is present
-            if "data" in interpretation and interpretation["data"]:
-                data = interpretation["data"]
-                debug_data = data.get("debug_data", {})
-                
+                # Add transaction type
                 if "model_classification_type" in debug_data:
-                    result += f"This transaction is a {debug_data['model_classification_type']} type transaction.\n"
+                    result += f"  Transaction Type: {debug_data['model_classification_type']}\n"
+                
+                # Add transaction hash
+                if "transaction_hash" in debug_data:
+                    result += f"  Transaction Hash: {debug_data['transaction_hash']}\n"
+                
+                # Process summary templates in debug data
+                if "summary_template" in debug_data:
+                    summary_template = debug_data["summary_template"]
+                    result += "  Summary Templates:\n"
                     
-                    # Try to extract any token information
-                    if "summary_template" in debug_data:
-                        for template_type, template_data in debug_data["summary_template"].items():
-                            if "template_vars" in template_data:
-                                vars_data = template_data["template_vars"]
+                    for template_type, template_data in summary_template.items():
+                        result += f"    Template Type: {template_type}\n"
+                        
+                        if "template_name" in template_data:
+                            result += f"    Template Name: {template_data['template_name']}\n"
+                        
+                        if "template_vars" in template_data:
+                            vars_data = template_data["template_vars"]
+                            result += "    Template Variables:\n"
+                            
+                            # Process all template variables
+                            for key, value in vars_data.items():
+                                if isinstance(value, dict):
+                                    # Handle complex objects like tokens, addresses, etc.
+                                    result += f"      {key}:\n"
+                                    
+                                    if key == "token":
+                                        # Extract token information
+                                        result += "        Token Information:\n"
+                                        for token_key, token_value in value.items():
+                                            if token_value not in (None, "", [], {}):
+                                                result += f"          {token_key}: {token_value}\n"
+                                    
+                                    elif key.endswith("Address"):
+                                        # Extract address information
+                                        result += "        Address Information:\n"
+                                        for addr_key, addr_value in value.items():
+                                            if addr_value not in (None, "", [], {}):
+                                                result += f"          {addr_key}: {addr_value}\n"
+                                    
+                                    elif key == "decodedApprovalEvent":
+                                        # Extract decoded approval event information
+                                        result += "        Decoded Approval Event:\n"
+                                        
+                                        # Process address information
+                                        if "address" in value:
+                                            addr = value["address"]
+                                            result += "          Contract Address:\n"
+                                            for addr_key, addr_value in addr.items():
+                                                if addr_value not in (None, "", [], {}):
+                                                    if isinstance(addr_value, (dict, list)):
+                                                        result += f"            {addr_key}: {str(addr_value)}\n"
+                                                    else:
+                                                        result += f"            {addr_key}: {addr_value}\n"
+                                        
+                                        # Process block information
+                                        if "block_hash" in value:
+                                            result += f"          Block Hash: {value['block_hash']}\n"
+                                        if "block_number" in value:
+                                            result += f"          Block Number: {value['block_number']}\n"
+                                        
+                                        # Process data and topics
+                                        if "data" in value:
+                                            result += f"          Data: {value['data']}\n"
+                                        if "topics" in value and value["topics"]:
+                                            result += "          Topics:\n"
+                                            for i, topic in enumerate(value["topics"]):
+                                                if topic:
+                                                    result += f"            Topic {i}: {topic}\n"
+                                        
+                                        # Process decoded information
+                                        if "decoded" in value and isinstance(value["decoded"], dict):
+                                            decoded = value["decoded"]
+                                            result += "          Decoded Information:\n"
+                                            result += f"            Method Call: {decoded.get('method_call', 'Unknown')}\n"
+                                            result += f"            Method ID: {decoded.get('method_id', 'Unknown')}\n"
+                                            
+                                            # Process parameters
+                                            if "parameters" in decoded and decoded["parameters"]:
+                                                result += "            Parameters:\n"
+                                                for param in decoded["parameters"]:
+                                                    param_name = param.get("name", "Unknown")
+                                                    param_type = param.get("type", "Unknown")
+                                                    param_value = param.get("value", "Unknown")
+                                                    param_indexed = param.get("indexed", False)
+                                                    
+                                                    # Format value if it's a max uint256 (unlimited approval)
+                                                    if (param_type == "uint256" and 
+                                                        isinstance(param_value, str) and 
+                                                        param_value.startswith("115792089237316195423570985008687907853269984665640564039457584007")):
+                                                        param_value = f"Unlimited ({param_value})"
+                                                    
+                                                    result += f"              {param_name} ({param_type}): {param_value} (Indexed: {param_indexed})\n"
+                                        
+                                        # Process other fields
+                                        for field_key, field_value in value.items():
+                                            if field_key not in ("address", "block_hash", "block_number", "data", "topics", "decoded") and field_value not in (None, "", [], {}):
+                                                result += f"          {field_key}: {field_value}\n"
+                                    
+                                    else:
+                                        # For other dictionary types, just dump all key-values
+                                        for sub_key, sub_value in value.items():
+                                            if sub_value not in (None, "", [], {}):
+                                                result += f"        {sub_key}: {sub_value}\n"
                                 
-                                # Look for token information
-                                for key, value in vars_data.items():
-                                    if isinstance(value, dict) and "address" in value:
-                                        result += f"\nInvolved Token: {value.get('name', 'Unknown')} ({value.get('symbol', 'Unknown')})\n"
-                                        result += f"Token Type: {value.get('type', 'Unknown')}\n"
-                                        result += f"Token Address: {value.get('address', 'Unknown')}\n"
-                                        result += f"Token Holders: {value.get('holders', 'Unknown')}\n"
-                                        result += f"Token Supply: {value.get('total_supply', 'Unknown')}\n"
-                                        break
-                else:
-                    result += "No detailed interpretation available for this transaction.\n"
-            else:
-                result += "No interpretation data available for this transaction.\n"
+                                elif isinstance(value, list):
+                                    # Handle list types
+                                    if value:  # Only process non-empty lists
+                                        result += f"      {key}:\n"
+                                        for i, item in enumerate(value):
+                                            result += f"        Item {i+1}: {str(item)}\n"
+                                
+                                else:
+                                    # Handle simple values
+                                    result += f"      {key}: {value}\n"
+                
+                # Process any other debug data fields
+                for key, value in debug_data.items():
+                    if key not in ("model_classification_type", "transaction_hash", "summary_template") and value not in (None, "", [], {}):
+                        result += f"  {key}: {str(value)}\n"
+            
+            # Process any other data fields
+            for key, value in data.items():
+                if key != "debug_data" and value not in (None, "", [], {}):
+                    result += f"  {key}: {str(value)}\n"
 
+        # Return the raw JSON data as well
+        result += "\n\nRAW JSON DATA:\n"
+        import json
+        result += json.dumps(interpretation, indent=2)
+        
         return result
     except Exception as e:
         return f"Error interpreting transaction: {str(e)}"
