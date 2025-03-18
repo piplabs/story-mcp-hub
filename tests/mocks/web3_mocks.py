@@ -20,9 +20,9 @@ MOCK_TX_RECEIPT = {
     "status": 1
 }
 
-# Sample IP data
-SAMPLE_IP_ID = "0x9876543210abcdef9876543210abcdef98765432"
-SAMPLE_NFT_CONTRACT = "0xabcdef1234567890abcdef1234567890abcdef1234"
+# Sample IP data (using valid Ethereum addresses)
+SAMPLE_IP_ID = "0x9876543210abcdef9876543210abcdef98765432"  # IP IDs have their own format
+SAMPLE_NFT_CONTRACT = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"  # Valid Ethereum address (WETH contract)
 SAMPLE_TOKEN_ID = 42
 SAMPLE_LICENSE_TERMS_ID = 1
 
@@ -114,7 +114,11 @@ def create_mock_web3() -> Mock:
     # Mock utility methods
     mock_w3.to_wei = lambda amount, unit: int(amount * 10**18) if unit == "ether" else int(amount * 10**9) if unit == "gwei" else int(amount)
     mock_w3.from_wei = lambda amount, unit: amount / 10**18 if unit == "ether" else amount / 10**9 if unit == "gwei" else amount
-    mock_w3.to_checksum_address = lambda addr: addr
+    
+    # Use the real Web3 checksumming for address validation
+    from web3 import Web3 as RealWeb3
+    mock_w3.to_checksum_address = RealWeb3.to_checksum_address
+    
     mock_w3.to_bytes = lambda hexstr: bytes.fromhex(hexstr.replace("0x", ""))
     mock_w3.keccak = lambda text=None: b"\xab\xcd\xef\x12\x34\x56\x78\x90" if text else b"\xab\xcd\xef\x12\x34\x56\x78\x90"
     
