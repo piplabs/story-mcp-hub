@@ -270,7 +270,48 @@ To add a new MCP server to the hub:
 3. Add any necessary dependencies to the root `pyproject.toml`
 4. Update this README with information about your server
 
-## Troubleshooting
+## Testing
+
+### Running Tests
+
+The project uses pytest for testing. To run the tests:
+
+1. Install test dependencies:
+
+```bash
+uv pip install -e ".[test]"
+```
+
+2. Run all tests:
+
+```bash
+pytest
+```
+
+3. Run specific test categories:
+
+```bash
+# Run unit tests only
+pytest tests/unit
+
+# Run integration tests only
+pytest tests/integration
+
+# Run with coverage report
+pytest --cov=. --cov-report=term-missing
+```
+
+4. Run individual test files:
+
+```bash
+pytest tests/unit/story-sdk-mcp/test_story_service.py
+```
+
+### Environment Setup for Testing
+
+The tests use a `.env.test` file with mock credentials for testing. This file is automatically loaded during test runs.
+
+### Troubleshooting
 
 If you encounter issues:
 
