@@ -25,8 +25,11 @@ wheels/
 .installed.cfg
 *.egg
 
-# Test files
-test*.py
+# Test files (but not our regular unit tests)
+# We want to keep unit test files like test_*.py
+# But ignore temporary test scripts
+test.py
+temp_test*.py
 
 # Coverage reports
 .coverage
