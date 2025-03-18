@@ -3,7 +3,7 @@ from story_protocol_python_sdk.story_client import StoryClient
 from story_protocol_python_sdk.resources.NFTClient import NFTClient
 import requests
 import os
-from typing import Union
+from typing import Union, Optional
 import time
 import json
 import sys
@@ -17,20 +17,29 @@ from utils.contract_addresses import get_contracts_by_chain_id, CHAIN_IDS
 
 
 class StoryService:
-    def __init__(self, rpc_url: str, private_key: str, network: str = None):
+    def __init__(self, rpc_url: str, private_key: Optional[str] = None, network: str = None):
         """
-        Initialize Story Protocol service with RPC URL and private key.
+        Initialize Story Protocol service with RPC URL and optional private key.
 
         Args:
             rpc_url: RPC URL for the blockchain
-            private_key: Private key for signing transactions
+            private_key: Optional private key for signing transactions. If not provided,
+                        transactions will need to be signed by the frontend wallet.
             network: Optional network name ('aeneid' or 'mainnet') to override auto-detection
         """
         self.web3 = Web3(Web3.HTTPProvider(rpc_url))
         if not self.web3.is_connected():
             raise Exception("Failed to connect to the Web3 provider")
 
-        self.account = self.web3.eth.account.from_key(private_key)
+        self.private_key = private_key
+        self.account = None
+        
+        # Set up account if private key is provided
+        if private_key:
+            self.account = self.web3.eth.account.from_key(private_key)
+            print(f"Connected with account: {self.account.address}")
+        else:
+            print("No private key provided. Transactions will require frontend wallet signing.")
 
         # Detect chain ID
         self.chain_id = self.web3.eth.chain_id
@@ -51,43 +60,53 @@ class StoryService:
                 self.network = "mainnet"
             else:
                 raise ValueError(
-                    f"Unsupported chain ID: {self.chain_id}. Must be {CHAIN_IDS['aeneid']} (Aeneid) or {CHAIN_IDS['mainnet']} (Mainnet)"
+                    f"Unsupported chain ID: {self.chain_id}. "
+                    f"Supported chain IDs: {list(CHAIN_IDS.values())}"
                 )
 
-        # Initialize Story client with detected chain ID
-        self.client = StoryClient(
-            web3=self.web3, account=self.account, chain_id=self.chain_id
-        )
+        # Get contract addresses for the current chain ID
+        self.contract_addresses = get_contracts_by_chain_id(self.chain_id)
 
-        # Manually initialize the NFTClient
-        self.nft_client = NFTClient(
-            web3=self.web3, account=self.account, chain_id=self.chain_id
-        )
-
-        # Get contract addresses for the detected network
-        self.contracts = get_contracts_by_chain_id(self.chain_id)
-
-        # Set license template from contracts
-        self.LICENSE_TEMPLATE = self.contracts["PILicenseTemplate"]
-
-        # Initialize Pinata JWT
-        self.pinata_jwt = os.getenv("PINATA_JWT")
-        if not self.pinata_jwt:
-            self.ipfs_enabled = False
-            print(
-                "Warning: PINATA_JWT environment variable not found. IPFS functions will be disabled."
+        # Initialize the Story SDK client if private key is provided
+        if private_key and self.account:
+            # Use web3, account, and chain_id parameters instead of rpc_url and private_key
+            self.story_client = StoryClient(
+                web3=self.web3, 
+                account=self.account,
+                chain_id=self.chain_id
+            )
+            
+            # Update NFTClient initialization as well
+            self.nft_client = NFTClient(
+                web3=self.web3,
+                account=self.account,
+                chain_id=self.chain_id
             )
         else:
-            self.ipfs_enabled = True
+            self.story_client = None
+            self.nft_client = None
 
         # Initialize address resolver
-        self.address_resolver = create_address_resolver(
-            self.web3, chain_id=CHAIN_IDS["mainnet"]
-        )  # Story Protocol chain ID for .ip domains
+        self.address_resolver = create_address_resolver(self.web3)
+
+        # Check IPFS configuration
+        self.pinata_jwt = os.getenv("PINATA_JWT", "")
+        self.ipfs_enabled = bool(self.pinata_jwt)
+        if not self.ipfs_enabled:
+            print("IPFS functionality is disabled (PINATA_JWT not set)")
+            
+    def has_private_key(self) -> bool:
+        """
+        Check if the service has a private key for signing transactions.
+        
+        Returns:
+            bool: True if a private key is available, False otherwise
+        """
+        return self.private_key is not None and self.account is not None
 
     def get_license_terms(self, license_terms_id: int) -> dict:
         """Get the license terms for a specific ID."""
-        response = self.client.License.getLicenseTerms(license_terms_id)
+        response = self.story_client.License.getLicenseTerms(license_terms_id)
         if not response:
             raise ValueError(f"No license terms found for ID {license_terms_id}")
 
@@ -144,7 +163,7 @@ class StoryService:
             # Build kwargs dict with only provided parameters
             kwargs = {
                 "licensor_ip_id": licensor_ip_id,
-                "license_template": self.LICENSE_TEMPLATE,  # Use default template
+                "license_template": self.contract_addresses["PILicenseTemplate"],  # Use default template
                 "license_terms_id": license_terms_id,
                 "amount": amount,
                 "receiver": resolved_receiver,
@@ -155,11 +174,61 @@ class StoryService:
             if max_revenue_share is not None:
                 kwargs["max_revenue_share"] = max_revenue_share
 
-            response = self.client.License.mintLicenseTokens(**kwargs)
+            response = self.story_client.License.mintLicenseTokens(**kwargs)
             return response
 
         except Exception as e:
             print(f"Error minting license tokens: {str(e)}")
+            raise
+
+    def prepare_send_ip_transaction(self, to_address: str, amount: float) -> dict:
+        """
+        Prepare a transaction object for sending IP tokens that can be signed by a frontend wallet.
+
+        :param to_address: Recipient's address or domain name
+        :param amount: Amount of IP tokens to send (1 IP = 1 Ether)
+        :return: Transaction object ready for signing
+        """
+        try:
+            # Resolve the recipient address
+            resolved_address = self.address_resolver.resolve_address(to_address)
+
+            # Convert amount to Wei (1 IP = 1 Ether)
+            value_in_wei = self.web3.to_wei(amount, "ether")
+
+            # Set a default gas price if we can't get it from the network
+            try:
+                gas_price = self.web3.eth.gas_price
+            except Exception:
+                # Fallback gas price (50 gwei)
+                gas_price = self.web3.to_wei(50, "gwei")
+
+            # Estimate gas (we'll use the standard transfer gas limit)
+            gas_estimate = 21000  # Standard transfer gas limit
+
+            # Build the transaction (without nonce and from address - these will be set by the frontend)
+            transaction = {
+                "to": resolved_address,
+                "value": value_in_wei,
+                "gas": gas_estimate,
+                "gasPrice": gas_price,
+                "chainId": self.chain_id,
+                "data": "0x"  # Empty data for simple transfer
+            }
+
+            # Convert the transaction to a format that can be serialized to JSON
+            tx_for_json = {
+                "to": transaction["to"],
+                "value": hex(transaction["value"]),
+                "gas": hex(transaction["gas"]),
+                "gasPrice": hex(transaction["gasPrice"]),
+                "chainId": transaction["chainId"],
+                "data": transaction["data"]
+            }
+
+            return tx_for_json
+        except Exception as e:
+            print(f"Error preparing send IP transaction: {str(e)}")
             raise
 
     def send_ip(self, to_address: str, amount: float) -> dict:
@@ -170,6 +239,9 @@ class StoryService:
         :param amount: Amount of IP tokens to send (1 IP = 1 Ether)
         :return: Transaction details
         """
+        if not self.has_private_key():
+            raise ValueError("Cannot send IP tokens without a private key. Use prepare_send_ip_transaction instead.")
+            
         try:
             # Resolve the recipient address
             resolved_address = self.address_resolver.resolve_address(to_address)
@@ -210,7 +282,7 @@ class StoryService:
                 "gas": gas_estimate,
                 "gasPrice": gas_price,
                 "nonce": self.web3.eth.get_transaction_count(self.account.address),
-                "chainId": 1315,  # Story Protocol chain ID
+                "chainId": self.chain_id,
             }
 
             # Sign and send the transaction
@@ -404,10 +476,10 @@ class StoryService:
 
             # Use default SPG NFT contract if none provided
             if spg_nft_contract is None:
-                spg_nft_contract = self.contracts["SPG_NFT"]
+                spg_nft_contract = self.contract_addresses["SPG_NFT"]
 
             # Use the royalty policy from the contracts dictionary
-            royalty_policy = self.contracts["RoyaltyPolicyLAP"]
+            royalty_policy = self.contract_addresses["RoyaltyPolicyLAP"]
 
             # Create terms matching our working structure
             terms = [
@@ -456,7 +528,7 @@ class StoryService:
             if registration_metadata:
                 kwargs["ip_metadata"] = registration_metadata
 
-            response = self.client.IPAsset.mintAndRegisterIpAssetWithPilTerms(**kwargs)
+            response = self.story_client.IPAsset.mintAndRegisterIpAssetWithPilTerms(**kwargs)
 
             return {
                 "txHash": response.get("txHash"),
@@ -556,7 +628,7 @@ class StoryService:
     #     default_minting_fee: int = 92
     # ) -> dict:
     #     """Register new PIL terms with customizable parameters."""
-    #     response = self.client.License.registerPILTerms(
+    #     response = self.story_client.License.registerPILTerms(
     #         transferable=transferable,
     #         royalty_policy=self.web3.to_checksum_address("0x0000000000000000000000000000000000000000"),
     #         default_minting_fee=default_minting_fee,
@@ -579,7 +651,7 @@ class StoryService:
 
     # def register_non_commercial_social_remixing_pil(self) -> dict:
     #     """Register a non-commercial social remixing PIL license."""
-    #     return self.client.License.registerNonComSocialRemixingPIL()
+    #     return self.story_client.License.registerNonComSocialRemixingPIL()
 
     # TODO: don't need this function for now
     # def register_ip_asset(self, nft_contract: str, token_id: int, metadata: dict) -> dict:
@@ -593,7 +665,7 @@ class StoryService:
     #     """
     #     try:
     #         # Using the IPAsset module from the SDK
-    #         response = self.client.IPAsset.registerRootIP(
+    #         response = self.story_client.IPAsset.registerRootIP(
     #             nftContract=self.web3.to_checksum_address(nft_contract),
     #             tokenId=token_id,
     #             metadata=metadata
@@ -613,7 +685,7 @@ class StoryService:
     #     """
     #     try:
     #         # Using the License module from the SDK
-    #         response = self.client.License.addPolicyToIp(
+    #         response = self.story_client.License.addPolicyToIp(
     #             ipId=ip_id,
     #             licenseTermsId=license_terms_id
     #         )
@@ -633,7 +705,7 @@ class StoryService:
     #     """
     #     try:
     #         # Using the IPAsset module's combined mint and register function
-    #         response = self.client.IPAsset.mintAndRegisterRootIP(
+    #         response = self.story_client.IPAsset.mintAndRegisterRootIP(
     #             recipient=self.web3.to_checksum_address(to_address),
     #             tokenURI=metadata_uri,
     #             metadata=ip_metadata

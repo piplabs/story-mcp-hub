@@ -17,12 +17,10 @@ print(f"RPC URL from env: {os.getenv('RPC_PROVIDER_URL')}")
 # Get environment variables
 private_key = os.getenv("WALLET_PRIVATE_KEY")
 rpc_url = os.getenv("RPC_PROVIDER_URL")
-if not private_key or not rpc_url:
-    raise ValueError(
-        "WALLET_PRIVATE_KEY and RPC_PROVIDER_URL environment variables are required"
-    )
+if not rpc_url:
+    raise ValueError("RPC_PROVIDER_URL environment variable is required")
 
-# Initialize Story service
+# Initialize Story service - private key is now optional
 story_service = StoryService(rpc_url=rpc_url, private_key=private_key)
 
 # Initialize MCP
@@ -53,43 +51,42 @@ if story_service.ipfs_enabled:
         image_uri: str, name: str, description: str, attributes: list = None
     ) -> str:
         """
-        Create and upload both NFT and IP metadata to IPFS.
+        Create IP metadata JSON using an IPFS image URI.
 
         Args:
-            image_uri: IPFS URI of the uploaded image
-            name: Name of the NFT/IP
-            description: Description of the NFT/IP
-            attributes: Optional list of attribute dictionaries
+            image_uri: IPFS URI of the image
+            name: Name for the IP asset
+            description: Description of the IP asset
+            attributes: Optional list of attributes as key-value pairs
 
         Returns:
-            str: Result message with metadata details and IPFS URIs
+            str: IPFS URI of the uploaded metadata JSON
         """
         try:
+            if not attributes:
+                attributes = []
+
             result = story_service.create_ip_metadata(
-                image_uri=image_uri,
-                name=name,
-                description=description,
-                attributes=attributes,
+                image_uri=image_uri, name=name, description=description, attributes=attributes
             )
-            return (
-                f"Successfully created and uploaded metadata:\n"
-                f"NFT Metadata URI: {result['nft_metadata_uri']}\n"
-                f"IP Metadata URI: {result['ip_metadata_uri']}\n"
-                f"Registration metadata for minting:\n"
-                f"{json.dumps(result['registration_metadata'], indent=2)}"
-            )
+            return f"Successfully created IP metadata: {json.dumps(result, indent=2)}"
         except Exception as e:
-            return f"Error creating metadata: {str(e)}"
+            return f"Error creating IP metadata: {str(e)}"
 
 
 @mcp.tool()
 def get_license_terms(license_terms_id: int) -> str:
-    """Get the license terms for a specific ID."""
+    """
+    Get details of a license terms template by ID.
+
+    :param license_terms_id: The ID of the license terms
+    :return: License terms details
+    """
     try:
-        terms = story_service.get_license_terms(license_terms_id)
-        return f"License Terms {license_terms_id}: {terms}"
+        license_terms = story_service.get_license_terms(license_terms_id)
+        return f"License Terms Details: {json.dumps(license_terms, indent=2)}"
     except Exception as e:
-        return f"Error retrieving license terms: {str(e)}"
+        return f"Error getting license terms: {str(e)}"
 
 
 @mcp.tool()
@@ -101,16 +98,20 @@ def mint_license_tokens(
     max_revenue_share: int = None,
 ) -> str:
     """
-    Mint license tokens for a given IP and license terms.
+    Mint license tokens for a specific IP asset using a license terms template.
 
-    :param licensor_ip_id: The ID of the licensor's intellectual property
-    :param license_terms_id: The ID of the license terms
-    :param receiver: Optional; the recipient's address for the tokens
-    :param max_minting_fee: Optional; maximum fee for minting
-    :param max_revenue_share: Optional; maximum revenue share percentage
-    :return: Success message with transaction hash and token IDs
+    :param licensor_ip_id: The IP ID that is being licensed
+    :param license_terms_id: The license terms template ID to use
+    :param receiver: Optional recipient address (defaults to caller)
+    :param max_minting_fee: Optional maximum minting fee in wei
+    :param max_revenue_share: Optional maximum revenue share percentage
+    :return: Transaction result message
     """
     try:
+        # Check if we have a private key for signing
+        if not story_service.has_private_key():
+            return "This operation requires wallet signing. Please provide transaction details to the frontend for user signing."
+            
         response = story_service.mint_license_tokens(
             licensor_ip_id=licensor_ip_id,
             license_terms_id=license_terms_id,
@@ -118,32 +119,47 @@ def mint_license_tokens(
             max_minting_fee=max_minting_fee,
             max_revenue_share=max_revenue_share,
         )
-
+        
         return (
-            f"Successfully minted license tokens:\n"
-            f"Transaction Hash: {response['txHash']}\n"
-            f"License Token IDs: {response['licenseTokenIds']}"
+            f"Successfully minted license token. Transaction hash: {response['txHash']}\n"
+            f"License Token ID: {response.get('licenseTokenId', 'Not available yet')}"
         )
-    except ValueError as e:
-        return f"Validation error: {str(e)}"
     except Exception as e:
         return f"Error minting license tokens: {str(e)}"
 
 
 @mcp.tool()
-def send_ip(to_address: str, amount: float) -> str:
+def send_ip(from_address: str = None, to_address: str = None, amount: float = None) -> str:
     """
     Send IP tokens to another address.
 
+    :param from_address: The sender's wallet address (only needed for frontend-signed transactions)
     :param to_address: The recipient's wallet address
     :param amount: Amount of IP tokens to send (1 IP = 1 Ether)
-    :return: Transaction result message
+    :return: Transaction details or instructions
     """
+    # Input validation
+    if not to_address:
+        return "Please provide a recipient address (to_address)."
+    if not amount or amount <= 0:
+        return "Please provide a valid amount greater than 0."
+    
     try:
-        response = story_service.send_ip(to_address, amount)
-        return f"Successfully sent {amount} IP to {to_address}. Transaction hash: {response['txHash']}"
+        # Check if we're using server-side private key or frontend wallet
+        if story_service.has_private_key():
+            # Server-side signing
+            response = story_service.send_ip(to_address, amount)
+            return f"Successfully sent {amount} IP to {to_address}. Transaction hash: {response['txHash']}"
+        else:
+            # Frontend wallet signing
+            tx_data = story_service.prepare_send_ip_transaction(to_address, amount)
+            return json.dumps({
+                "action": "sign_transaction",
+                "transaction": tx_data,
+                "message": f"Please sign the transaction to send {amount} IP to {to_address}."
+            })
     except Exception as e:
-        return f"Error sending IP: {str(e)}"
+        return f"Error preparing IP transaction: {str(e)}"
 
 
 @mcp.tool()
@@ -155,24 +171,20 @@ def mint_and_register_ip_with_terms(
     spg_nft_contract: str = None,  # Make this optional
 ) -> str:
     """
-    Mint an NFT, register it as an IP Asset, and attach PIL terms.
+    Mint a new NFT representing an IP asset and register it with license terms.
 
-    Args:
-        commercial_rev_share: Percentage of revenue share (0-100)
-        derivatives_allowed: Whether derivatives are allowed
-        registration_metadata: Dict containing metadata URIs and hashes from create_ip_metadata
-        recipient: Optional recipient address (defaults to sender)
-        spg_nft_contract: Optional SPG NFT contract address (defaults to network-specific default)
-
-    Returns:
-        str: Result message with transaction details
+    :param commercial_rev_share: Commercial revenue share percentage (e.g., 10 for 10%)
+    :param derivatives_allowed: Whether derivatives are allowed under the license
+    :param registration_metadata: Optional metadata for registration (dict with content fields)
+    :param recipient: Optional recipient address (defaults to caller)
+    :param spg_nft_contract: Optional SPG NFT contract address
+    :return: Transaction result message
     """
     try:
-        # Validate inputs
-        if not (0 <= commercial_rev_share <= 100):
-            raise ValueError("commercial_rev_share must be between 0 and 100")
-
-        # No need to use SPG_NFT_CONTRACT from env, as StoryService now has defaults
+        # Check if we have a private key for signing
+        if not story_service.has_private_key():
+            return "This operation requires wallet signing. Please provide transaction details to the frontend for user signing."
+            
         response = story_service.mint_and_register_ip_with_terms(
             commercial_rev_share=commercial_rev_share,
             derivatives_allowed=derivatives_allowed,
@@ -180,24 +192,15 @@ def mint_and_register_ip_with_terms(
             recipient=recipient,
             spg_nft_contract=spg_nft_contract,
         )
-
-        # Determine which explorer URL to use based on network
-        explorer_url = (
-            "https://explorer.story.foundation"
-            if story_service.network == "mainnet"
-            else "https://aeneid.explorer.story.foundation"
-        )
-
+        
         return (
-            f"Successfully minted and registered IP asset with terms:\n"
-            f"Transaction Hash: {response['txHash']}\n"
-            f"IP ID: {response['ipId']}\n"
-            f"Token ID: {response['tokenId']}\n"
-            f"License Terms IDs: {response['licenseTermsIds']}\n"
-            f"View the IPA here: {explorer_url}/ipa/{response['ipId']}"
+            f"Successfully minted and registered IP asset.\n"
+            f"Transaction hash: {response['txHash']}\n"
+            f"IP ID: {response.get('ipId', 'Not available yet')}\n"
+            f"License Terms ID: {response.get('licenseTermsId', 'Not available yet')}"
         )
     except Exception as e:
-        return f"Error minting and registering IP with terms: {str(e)}"
+        return f"Error minting and registering IP: {str(e)}"
 
 
 @mcp.tool()
@@ -215,26 +218,26 @@ def create_spg_nft_collection(
     owner: str = None,
 ) -> str:
     """
-    Create a new SPG NFT collection that can be used for minting and registering IP assets.
+    Create a new SPG NFT collection.
 
-    Args:
-        name: (REQUIRED) Name of the NFT collection
-        symbol: (REQUIRED) Symbol for the NFT collection
-        is_public_minting: (OPTIONAL, default=True) Whether anyone can mint NFTs from this collection
-        mint_open: (OPTIONAL, default=True) Whether minting is currently enabled
-        mint_fee_recipient: (OPTIONAL) Address to receive minting fees (defaults to zero address)
-        contract_uri: (OPTIONAL) URI for the collection metadata (ERC-7572 standard)
-        base_uri: (OPTIONAL) Base URI for the collection. If not empty, tokenURI will be either
-                 baseURI + token ID or baseURI + nftMetadataURI
-        max_supply: (OPTIONAL) Maximum supply of the collection (defaults to unlimited)
-        mint_fee: (OPTIONAL) Cost to mint a token (defaults to 0)
-        mint_fee_token: (OPTIONAL) Token address used for minting fees (defaults to native token)
-        owner: (OPTIONAL) Owner address of the collection (defaults to sender)
-
-    Returns:
-        str: Information about the created collection
+    :param name: Collection name
+    :param symbol: Collection symbol
+    :param is_public_minting: Whether public minting is allowed
+    :param mint_open: Whether minting is currently open
+    :param mint_fee_recipient: Address to receive mint fees (defaults to creator)
+    :param contract_uri: Contract metadata URI
+    :param base_uri: Base URI for token metadata
+    :param max_supply: Maximum token supply (0 for unlimited)
+    :param mint_fee: Minting fee in wei
+    :param mint_fee_token: Token address for mint fee (empty for native token)
+    :param owner: Owner address (defaults to creator)
+    :return: Transaction result message
     """
     try:
+        # Check if we have a private key for signing
+        if not story_service.has_private_key():
+            return "This operation requires wallet signing. Please provide transaction details to the frontend for user signing."
+            
         response = story_service.create_spg_nft_collection(
             name=name,
             symbol=symbol,
@@ -248,19 +251,11 @@ def create_spg_nft_collection(
             mint_fee_token=mint_fee_token,
             owner=owner,
         )
-
+        
         return (
-            f"Successfully created SPG NFT collection:\n"
-            f"Name: {name}\n"
-            f"Symbol: {symbol}\n"
-            f"Transaction Hash: {response['tx_hash']}\n"
-            f"SPG NFT Contract Address: {response['spg_nft_contract']}\n"
-            f"Base URI: {base_uri if base_uri else 'Not set'}\n"
-            f"Max Supply: {max_supply if max_supply is not None else 'Unlimited'}\n"
-            f"Mint Fee: {mint_fee if mint_fee is not None else '0'}\n"
-            f"Mint Fee Token: {mint_fee_token if mint_fee_token else 'Not set'}\n"
-            f"Owner: {owner if owner else 'Default (sender)'}\n\n"
-            f"You can now use this contract address with the mint_and_register_ip_with_terms tool."
+            f"Successfully created SPG NFT collection.\n"
+            f"Transaction hash: {response['txHash']}\n"
+            f"Collection address: {response.get('collectionAddress', 'Not available yet')}"
         )
     except Exception as e:
         return f"Error creating SPG NFT collection: {str(e)}"
