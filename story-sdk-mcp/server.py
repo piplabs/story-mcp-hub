@@ -10,6 +10,13 @@ from pathlib import Path
 # Add the parent directory to the Python path so we can import utils
 sys.path.append(str(Path(__file__).parent.parent))
 
+# Import utilities
+from utils.transaction_utils import (
+    is_valid_ethereum_address,
+    validate_and_format_address,
+    create_transaction_intent
+)
+
 # Load environment variables
 load_dotenv(override=True)
 print(f"RPC URL from env: {os.getenv('RPC_PROVIDER_URL')}")
@@ -145,19 +152,27 @@ def send_ip(from_address: str = None, to_address: str = None, amount: float = No
         return "Please provide a valid amount greater than 0."
     
     try:
+        # Validate the address format
+        try:
+            formatted_address = validate_and_format_address(to_address)
+        except ValueError as e:
+            return f"Error: {str(e)}"
+            
         # Check if we're using server-side private key or frontend wallet
         if story_service.has_private_key():
             # Server-side signing
-            response = story_service.send_ip(to_address, amount)
-            return f"Successfully sent {amount} IP to {to_address}. Transaction hash: {response['txHash']}"
+            response = story_service.send_ip(formatted_address, amount)
+            return f"Successfully sent {amount} IP to {formatted_address}. Transaction hash: {response['txHash']}"
         else:
-            # Frontend wallet signing
-            tx_data = story_service.prepare_send_ip_transaction(to_address, amount)
-            return json.dumps({
-                "action": "sign_transaction",
-                "transaction": tx_data,
-                "message": f"Please sign the transaction to send {amount} IP to {to_address}."
-            })
+            # For frontend wallet signing, create a transaction intent message
+            # This special format will be detected by the frontend and trigger wallet signing
+            intent_message = create_transaction_intent(
+                to_address=formatted_address,
+                amount=str(amount)
+            )
+            
+            # Return both the intent message and a human-readable message
+            return f"{intent_message}\n\nI've prepared a transaction to send {amount} IP to {formatted_address}. Please approve it in your wallet when prompted."
     except Exception as e:
         return f"Error preparing IP transaction: {str(e)}"
 
