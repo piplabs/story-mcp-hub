@@ -23,7 +23,7 @@ mcp = FastMCP()
 api_endpoint = os.environ.get("STORYSCAN_API_ENDPOINT")
 if not api_endpoint:
     print("STORYSCAN_API_ENDPOINT environment variable is required")
-    api_endpoint = "https://www.storyscan.xyz/api"  # Default fallback
+    api_endpoint = "https://www.storyscan.io/api"  # Default fallback
 
 # Initialize StoryScan service with SSL verification disabled
 story_service = StoryscanService(api_endpoint, disable_ssl_verification=True)
