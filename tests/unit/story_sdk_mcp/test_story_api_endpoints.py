@@ -124,7 +124,7 @@ def mock_story_service():
     })
     
     # Ensure the network property is set
-    mock_service.network = "mainnet"
+    mock_service.network = "aeneid"
     
     return mock_service
 
