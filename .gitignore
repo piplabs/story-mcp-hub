@@ -1,5 +1,7 @@
+# Environment files
 .env
-__pycache__
+.env.test
+
 # OS generated files
 .DS_Store
 

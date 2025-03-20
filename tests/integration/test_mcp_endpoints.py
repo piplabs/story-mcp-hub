@@ -55,10 +55,10 @@ class TestMCPIntegration:
     @pytest.fixture
     def setup_environment(self, monkeypatch):
         """Set up environment variables for testing"""
-        monkeypatch.setenv("WALLET_PRIVATE_KEY", "e432d83208d8575baf3b53b37077fca1e41e8d2e1587d127d6e43e90ed1e800a")
-        monkeypatch.setenv("RPC_PROVIDER_URL", "https://mainnet.storyrpc.io")
+        monkeypatch.setenv("WALLET_PRIVATE_KEY", "mock_private_key")
+        monkeypatch.setenv("RPC_PROVIDER_URL", "https://aeneid.storyrpc.io")
         monkeypatch.setenv("PINATA_JWT", "mock_pinata_jwt")
-        monkeypatch.setenv("STORYSCAN_API_ENDPOINT", "https://www.storyscan.xyz/api")
+        monkeypatch.setenv("STORYSCAN_API_ENDPOINT", "https://aeneid.storyscan.io/api")
         monkeypatch.setenv("TESTING", "1")
     
     @pytest.fixture
@@ -68,7 +68,7 @@ class TestMCPIntegration:
         
         # Set up common mock methods
         mock_service.ipfs_enabled = True
-        mock_service.network = "mainnet"
+        mock_service.network = "aeneid"
         
         # Mock get_license_terms
         mock_service.get_license_terms.return_value = {
