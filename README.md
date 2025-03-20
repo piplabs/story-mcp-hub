@@ -285,26 +285,26 @@ uv pip install -e ".[test]"
 2. Run all tests:
 
 ```bash
-pytest
+uv run python -m pytest
 ```
 
 3. Run specific test categories:
 
 ```bash
 # Run unit tests only
-pytest tests/unit
+uv run python -m pytest tests/unit
 
 # Run integration tests only
-pytest tests/integration
+uv run python -m pytest tests/integration
 
 # Run with coverage report
-pytest --cov=. --cov-report=term-missing
+uv run python -m pytest --cov=. --cov-report=term-missing
 ```
 
 4. Run individual test files:
 
 ```bash
-pytest tests/unit/story-sdk-mcp/test_story_service.py
+uv run python -m pytest tests/unit/story-sdk-mcp/test_story_service.py
 ```
 
 ### Environment Setup for Testing
