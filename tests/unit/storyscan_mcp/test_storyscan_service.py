@@ -36,12 +36,12 @@ class TestStoryscanService:
     @pytest.fixture
     def mock_env(self, monkeypatch):
         """Set up environment variables for testing"""
-        monkeypatch.setenv("STORYSCAN_API_ENDPOINT", "https://www.storyscan.xyz/api")
+        monkeypatch.setenv("STORYSCAN_API_ENDPOINT", "https://aeneid.storyscan.io/api")
     
     @pytest.fixture
     def storyscan_service(self, mock_env):
         """Create a StoryscanService instance"""
-        return StoryscanService("https://www.storyscan.xyz/api", disable_ssl_verification=True)
+        return StoryscanService("https://aeneid.storyscan.io/api", disable_ssl_verification=True)
     
     @patch("requests.get")
     def test_get_transaction_history(self, mock_get, storyscan_service):
