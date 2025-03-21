@@ -270,7 +270,71 @@ To add a new MCP server to the hub:
 3. Add any necessary dependencies to the root `pyproject.toml`
 4. Update this README with information about your server
 
-## Troubleshooting
+## Testing
+
+### Running Tests
+
+The project includes a test runner script (`run_tests.py`) that handles environment setup and test execution. To run tests:
+
+1. Install test dependencies:
+
+```bash
+uv pip install -e ".[test]"
+```
+
+2. Run all tests:
+
+```bash
+uv run python run_tests.py
+```
+
+3. Run specific test categories:
+
+```bash
+# Run unit tests only
+uv run python run_tests.py -t tests/unit/
+
+# Run integration tests only
+uv run python run_tests.py -t tests/integration/
+
+# Run with verbose output
+uv run python run_tests.py -v
+```
+
+4. Run individual test files:
+
+```bash
+uv run python run_tests.py -t tests/unit/story_sdk_mcp/test_story_service.py
+```
+
+5. Get help on available options:
+
+```bash
+uv run python run_tests.py --help
+```
+
+### Environment Setup for Testing
+
+The tests use a `.env.test` file with mock credentials for testing. This file is automatically loaded by the test runner.
+
+To set up your test environment:
+
+1. Copy the example file to create your own `.env.test`:
+
+```bash
+cp .env.test.example .env.test
+```
+
+2. Edit the `.env.test` file to include your test credentials:
+
+```bash
+# For example, update the private key for blockchain interactions
+nano .env.test  # or use your preferred text editor
+```
+
+For more detailed information about testing, see the [testing guide](TESTING.md).
+
+### Troubleshooting
 
 If you encounter issues:
 

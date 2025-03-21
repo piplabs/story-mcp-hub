@@ -7,7 +7,7 @@ This is a Model Context Protocol (MCP) server for interacting with the StoryScan
 Create a `.env` file in the project root with:
 
 ```
-STORYSCAN_API_ENDPOINT=https://www.storyscan.xyz/api
+STORYSCAN_API_ENDPOINT=https://www.storyscan.io/api
 ```
 
 ## Available Tools
