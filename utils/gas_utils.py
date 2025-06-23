@@ -22,8 +22,8 @@ def wei_to_gwei(wei_value: Union[int, str]) -> float:
         if isinstance(wei_value, str):
             wei_value = int(wei_value)
 
-        # Use Web3.py's built-in conversion
-        return Web3.from_wei(wei_value, "gwei")
+        # Use Web3.py's built-in conversion, cast to float for consistency
+        return float(Web3.from_wei(wei_value, "gwei"))
     except Exception as e:
         logger.error(f"Error converting wei to gwei: {e}")
         return 0.0
@@ -87,8 +87,8 @@ def wei_to_eth(wei_value: Union[int, str]) -> float:
         if isinstance(wei_value, str):
             wei_value = int(wei_value)
 
-        # Use Web3.py's built-in conversion
-        return Web3.from_wei(wei_value, "ether")
+        # Use Web3.py's built-in conversion, cast to float for consistency
+        return float(Web3.from_wei(wei_value, "ether"))
     except Exception as e:
         logger.error(f"Error converting wei to eth: {e}")
         return 0.0

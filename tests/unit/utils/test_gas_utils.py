@@ -5,6 +5,7 @@ import pytest
 import sys
 import os
 from pathlib import Path
+import importlib.util
 
 # Add project root to Python path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
@@ -77,12 +78,13 @@ class TestGasUtils:
         result = wei_to_gwei(wei)
         assert result == expected
     
-    def test_wei_to_eth(self):
+    @pytest.mark.parametrize("wei,expect", [
+        (10**18, 1),
+        (12345, 1.2345e-14),
+    ])
+    def test_wei_to_eth(self, wei, expect):
         """Test converting wei to eth"""
-        wei = 1000000000000000000  # 10^18 wei = 1 eth
-        expected = 1.0
-        result = wei_to_eth(wei)
-        assert result == expected
+        assert wei_to_eth(wei) == pytest.approx(expect)
     
     def test_eth_to_wei(self):
         """Test converting eth to wei"""
@@ -130,3 +132,24 @@ class TestGasUtils:
         """Test formatting gas amounts with appropriate units"""
         result = format_gas_amount(gas_amount)
         assert result == expected
+
+    def test_invalid_rev_share_raises(self):
+        """Ensure invalid revenue share triggers validation error"""
+        # Dynamically load the server module because its package directory
+        # contains a hyphen ("story-sdk-mcp"), which cannot be imported with
+        # the normal dotted-path syntax.
+        project_root = Path(__file__).parent.parent.parent.parent
+        server_path = project_root / "story-sdk-mcp" / "server.py"
+
+        spec = importlib.util.spec_from_file_location("story_sdk_mcp_server", server_path)
+        server_module = importlib.util.module_from_spec(spec)  # type: ignore
+        assert spec.loader is not None  # mypy
+        spec.loader.exec_module(server_module)  # type: ignore
+
+        result = server_module.mint_and_register_ip_with_terms(
+            commercial_rev_share=150,  # invalid (> 100)
+            derivatives_allowed=True,
+            registration_metadata={},
+        )
+
+        assert "commercial_rev_share" in result

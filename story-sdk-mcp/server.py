@@ -2,7 +2,7 @@ from mcp.server.fastmcp import FastMCP
 from services.story_service import StoryService
 import os
 from dotenv import load_dotenv
-from typing import Union
+from typing import Union, Optional
 import json
 import sys
 from pathlib import Path
@@ -96,11 +96,11 @@ def get_license_terms(license_terms_id: int) -> str:
 def mint_license_tokens(
     licensor_ip_id: str,
     license_terms_id: int,
-    receiver: str = None,
+    receiver: Optional[str] = None,
     amount: int = 1,
-    max_minting_fee: int = None,
-    max_revenue_share: int = None,
-    license_template: str = None,
+    max_minting_fee: Optional[int] = None,
+    max_revenue_share: Optional[int] = None,
+    license_template: Optional[str] = None,
 ) -> str:
     """
     Mint license tokens for a given IP and license terms.
@@ -159,9 +159,9 @@ def send_ip(to_address: str, amount: float) -> str:
 def mint_and_register_ip_with_terms(
     commercial_rev_share: int,
     derivatives_allowed: bool,
-    registration_metadata: dict = None,
-    recipient: str = None,
-    spg_nft_contract: str = None,  # Make this optional
+    registration_metadata: dict,
+    recipient: Optional[str] = None,
+    spg_nft_contract: Optional[str] = None,  # Make this optional
 ) -> str:
     """
     Mint an NFT, register it as an IP Asset, and attach PIL terms.
