@@ -2,7 +2,7 @@ from mcp.server.fastmcp import FastMCP
 from services.story_service import StoryService
 import os
 from dotenv import load_dotenv
-from typing import Union
+from typing import Union, Optional
 import json
 import sys
 from pathlib import Path
@@ -50,7 +50,7 @@ if story_service.ipfs_enabled:
 
     @mcp.tool()
     def create_ip_metadata(
-        image_uri: str, name: str, description: str, attributes: list = None
+        image_uri: str, name: str, description: str, attributes: Optional[list] = None
     ) -> str:
         """
         Create and upload both NFT and IP metadata to IPFS.
@@ -96,11 +96,11 @@ def get_license_terms(license_terms_id: int) -> str:
 def mint_license_tokens(
     licensor_ip_id: str,
     license_terms_id: int,
-    receiver: str = None,
+    receiver: Optional[str] = None,
     amount: int = 1,
-    max_minting_fee: int = None,
-    max_revenue_share: int = None,
-    license_template: str = None,
+    max_minting_fee: Optional[int] = None,
+    max_revenue_share: Optional[int] = None,
+    license_template: Optional[str] = None,
 ) -> str:
     """
     Mint license tokens for a given IP and license terms.
@@ -159,9 +159,9 @@ def send_ip(to_address: str, amount: float) -> str:
 def mint_and_register_ip_with_terms(
     commercial_rev_share: int,
     derivatives_allowed: bool,
-    registration_metadata: dict = None,
-    recipient: str = None,
-    spg_nft_contract: str = None,  # Make this optional
+    registration_metadata: dict,
+    recipient: Optional[str] = None,
+    spg_nft_contract: Optional[str] = None,  # Make this optional
 ) -> str:
     """
     Mint an NFT, register it as an IP Asset, and attach PIL terms.
@@ -215,13 +215,13 @@ def create_spg_nft_collection(
     symbol: str,
     is_public_minting: bool = True,
     mint_open: bool = True,
-    mint_fee_recipient: str = None,
-    contract_uri: str = "",
-    base_uri: str = "",
-    max_supply: int = None,
-    mint_fee: int = None,
-    mint_fee_token: str = None,
-    owner: str = None,
+    mint_fee_recipient: Optional[str] = None,
+    contract_uri: Optional[str] = "",
+    base_uri: Optional[str] = "",
+    max_supply: Optional[int] = None,
+    mint_fee: Optional[int] = None,
+    mint_fee_token: Optional[str] = None,
+    owner: Optional[str] = None,
 ) -> str:
     """
     Create a new SPG NFT collection that can be used for minting and registering IP assets.
@@ -276,7 +276,7 @@ def create_spg_nft_collection(
 
 
 @mcp.tool()
-def register(nft_contract: str, token_id: int, ip_metadata: dict = None) -> str:
+def register(nft_contract: str, token_id: int, ip_metadata: Optional[dict] = None) -> str:
     """
     Register an NFT as IP, creating a corresponding IP record.
 
@@ -308,7 +308,7 @@ def register(nft_contract: str, token_id: int, ip_metadata: dict = None) -> str:
 
 
 @mcp.tool()
-def attach_license_terms(ip_id: str, license_terms_id: int, license_template: str = None) -> str:
+def attach_license_terms(ip_id: str, license_terms_id: int, license_template: Optional[str] = None) -> str:
     """
     Attaches license terms to an IP.
 
@@ -340,7 +340,7 @@ def register_derivative(
     max_minting_fee: int = 0,
     max_rts: int = 0,
     max_revenue_share: int = 0,
-    license_template: str = None
+    license_template: Optional[str] = None
 ) -> str:
     """
     Registers a derivative directly with parent IP's license terms, without needing license tokens.

@@ -345,29 +345,32 @@ class StoryService:
                 raise Exception(f"Failed to upload IP metadata: {ip_response.text}")
             ip_metadata_uri = f"ipfs://{ip_response.json()['IpfsHash']}"
 
-            # Generate hashes of the metadata JSONs
-            nft_metadata_hash = self.web3.keccak(
+            # Generate hashes of the metadata JSONs (32-byte) and convert to 0x-prefixed hex
+            nft_metadata_hash_bytes = self.web3.keccak(
                 text=json.dumps(nft_metadata, sort_keys=True)
             )
-            ip_metadata_hash = self.web3.keccak(
+            ip_metadata_hash_bytes = self.web3.keccak(
                 text=json.dumps(ip_metadata, sort_keys=True)
             )
+
+            nft_metadata_hash = Web3.to_hex(nft_metadata_hash_bytes)
+            ip_metadata_hash = Web3.to_hex(ip_metadata_hash_bytes)
 
             # Create metadata structure for registration
             registration_metadata = {
                 "ip_metadata_uri": ip_metadata_uri,
-                "ip_metadata_hash": ip_metadata_hash.hex(),
+                "ip_metadata_hash": ip_metadata_hash,
                 "nft_metadata_uri": nft_metadata_uri,
-                "nft_metadata_hash": nft_metadata_hash.hex(),
+                "nft_metadata_hash": nft_metadata_hash,
             }
 
             return {
                 "nft_metadata": nft_metadata,
                 "nft_metadata_uri": nft_metadata_uri,
-                "nft_metadata_hash": nft_metadata_hash.hex(),
+                "nft_metadata_hash": nft_metadata_hash,
                 "ip_metadata": ip_metadata,
                 "ip_metadata_uri": ip_metadata_uri,
-                "ip_metadata_hash": ip_metadata_hash.hex(),
+                "ip_metadata_hash": ip_metadata_hash,
                 "registration_metadata": registration_metadata,
             }
 
@@ -906,14 +909,14 @@ class StoryService:
             from story_protocol_python_sdk.abi.DisputeModule.DisputeModule_client import DisputeModuleClient
             dispute_module_client = DisputeModuleClient(self.web3, contract_address=dispute_module_address)
             
-            # Convert target_tag to bytes32 if it's a string
-            if isinstance(target_tag, str) and not target_tag.startswith("0x"):
+            # Accept both "0x" and "0X" prefixes by normalizing case
+            if isinstance(target_tag, str) and not target_tag.lower().startswith("0x"):
                 target_tag_bytes = self.web3.keccak(text=target_tag)
             else:
                 target_tag_bytes = target_tag
                 
-            # Convert data to bytes if it's a string
-            if isinstance(data, str) and data.startswith("0x"):
+            # Normalize case so both "0x" and "0X" are treated the same
+            if isinstance(data, str) and data.lower().startswith("0x"):
                 data_bytes = self.web3.to_bytes(hexstr=data)
             else:
                 data_bytes = data

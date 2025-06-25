@@ -580,3 +580,46 @@ class TestStoryService:
         # Verify the result
         assert result["txHash"] == "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
         assert result["disputeId"] == 1
+
+    @pytest.mark.parametrize(
+        "target_tag,data,dispute_id",[
+            ("0XDEADBEEF","0XCAFEBABE",42),   # hex-prefixed (upper-case) – should be converted to bytes
+            ("copyright","CAFEBABE",99)        # no prefix – should remain unchanged
+        ]
+    )
+    def test_raise_dispute_prefix_variations(self, story_service, mock_web3, target_tag, data, dispute_id):
+        """Ensure raise_dispute handles different data/target_tag prefix cases correctly."""
+        with patch("story_protocol_python_sdk.utils.transaction_utils.build_and_send_transaction") as mock_send, \
+             patch("story_protocol_python_sdk.abi.DisputeModule.DisputeModule_client.DisputeModuleClient") as mock_dispute_client_class:
+            mock_send.return_value = {
+                "txHash": "0xfeedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedfacefeedface",
+                "txReceipt": {"logs": []}
+            }
+
+            mock_dispute_client_class.return_value.build_raiseDispute_transaction = Mock()
+
+            with patch.object(story_service, "_parse_dispute_id_from_logs", return_value=dispute_id):
+                target_ip_id = "0xabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcd"
+                dispute_evidence_hash = "0xdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdef"
+
+                result = story_service.raise_dispute(
+                    target_ip_id=target_ip_id,
+                    dispute_evidence_hash=dispute_evidence_hash,
+                    target_tag=target_tag,
+                    data=data
+                )
+
+        # Exactly one tx build call
+        mock_send.assert_called_once()
+
+        called_args = mock_send.call_args[0]
+        forwarded_data = called_args[-1]
+
+        if data.lower().startswith("0x"):
+            # Prefixed inputs should be converted away from raw string
+            assert not isinstance(forwarded_data, str)
+        else:
+            assert forwarded_data == data  # unchanged
+
+        assert result["disputeId"] == dispute_id
+        assert result["txHash"].lower().startswith("0x")
