@@ -909,17 +909,20 @@ class StoryService:
             from story_protocol_python_sdk.abi.DisputeModule.DisputeModule_client import DisputeModuleClient
             dispute_module_client = DisputeModuleClient(self.web3, contract_address=dispute_module_address)
             
-            # Accept both "0x" and "0X" prefixes by normalizing case
-            if isinstance(target_tag, str) and not target_tag.lower().startswith("0x"):
-                target_tag_bytes = self.web3.keccak(text=target_tag)
+            # If it's a string but doesn't start with "0x", convert from text.
+            if isinstance(target_tag, str) and not target_tag.startswith("0x"):
+                target_tag = Web3.to_bytes(text=target_tag)
             else:
-                target_tag_bytes = target_tag
-                
-            # Normalize case so both "0x" and "0X" are treated the same
-            if isinstance(data, str) and data.lower().startswith("0x"):
-                data_bytes = self.web3.to_bytes(hexstr=data)
-            else:
-                data_bytes = data
+                # Otherwise, if it's a string, it must be a hex string.
+                target_tag = Web3.to_bytes(hexstr=target_tag) if isinstance(target_tag, str) else target_tag
+
+            # Convert hex string data to bytes if necessary
+            if isinstance(data, str) and data.startswith("0x"):
+                # If data is a hex string, convert it from hex.
+                data = Web3.to_bytes(hexstr=data)
+            elif isinstance(data, str):
+                # Otherwise, if it's a string, convert it from text.
+                data = Web3.to_bytes(text=data)
             
             # Build and send transaction
             from story_protocol_python_sdk.utils.transaction_utils import build_and_send_transaction
@@ -929,8 +932,8 @@ class StoryService:
                 dispute_module_client.build_raiseDispute_transaction,
                 target_ip_id,
                 dispute_evidence_hash,
-                target_tag_bytes,
-                data_bytes
+                target_tag,
+                data
             )
             
             # Parse dispute ID from logs (this would need to be implemented)

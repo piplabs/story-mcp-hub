@@ -582,12 +582,13 @@ class TestStoryService:
         assert result["disputeId"] == 1
 
     @pytest.mark.parametrize(
-        "target_tag,data,dispute_id",[
-            ("0XDEADBEEF","0XCAFEBABE",42),   # hex-prefixed (upper-case) – should be converted to bytes
-            ("copyright","CAFEBABE",99)        # no prefix – should remain unchanged
-        ]
+        "data, target_tag",
+        [
+            ("0XFEEDFACE", "0XCAFEF00D"),  # Uppercase "0X" is not a valid hex prefix
+            ("non-prefixed-string", "another-plain-string"),  # No prefix
+        ],
     )
-    def test_raise_dispute_prefix_variations(self, story_service, mock_web3, target_tag, data, dispute_id):
+    def test_raise_dispute_prefix_variations(self, story_service, mock_web3, data, target_tag):
         """Ensure raise_dispute handles different data/target_tag prefix cases correctly."""
         with patch("story_protocol_python_sdk.utils.transaction_utils.build_and_send_transaction") as mock_send, \
              patch("story_protocol_python_sdk.abi.DisputeModule.DisputeModule_client.DisputeModuleClient") as mock_dispute_client_class:
@@ -598,7 +599,7 @@ class TestStoryService:
 
             mock_dispute_client_class.return_value.build_raiseDispute_transaction = Mock()
 
-            with patch.object(story_service, "_parse_dispute_id_from_logs", return_value=dispute_id):
+            with patch.object(story_service, "_parse_dispute_id_from_logs", return_value=42):
                 target_ip_id = "0xabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcd"
                 dispute_evidence_hash = "0xdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdef"
 
@@ -613,13 +614,20 @@ class TestStoryService:
         mock_send.assert_called_once()
 
         called_args = mock_send.call_args[0]
-        forwarded_data = called_args[-1]
+        call_kwargs = called_args[-1]
+        forwarded_data = call_kwargs.get("data")
+        forwarded_target_tag = call_kwargs.get("targetTag")
 
-        if data.lower().startswith("0x"):
-            # Prefixed inputs should be converted away from raw string
+        if data.startswith("0x"):
+            # Prefixed inputs would be converted away from raw string
             assert not isinstance(forwarded_data, str)
         else:
-            assert forwarded_data == data  # unchanged
+            assert forwarded_data == data  # Unchanged in this test's mock setup
 
-        assert result["disputeId"] == dispute_id
+        if target_tag.startswith("0x"):
+            assert not isinstance(forwarded_target_tag, str)
+        else:
+            assert forwarded_target_tag == target_tag
+
+        assert result["disputeId"] == 42
         assert result["txHash"].lower().startswith("0x")
