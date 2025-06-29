@@ -276,7 +276,11 @@ def create_spg_nft_collection(
 
 
 @mcp.tool()
-def register(nft_contract: str, token_id: int, ip_metadata: Optional[dict] = None) -> str:
+def register(
+    nft_contract: str, 
+    token_id: int, 
+    ip_metadata: Optional[dict] = None
+    ) -> str:
     """
     Register an NFT as IP, creating a corresponding IP record.
 
@@ -441,18 +445,20 @@ def claim_revenue(
 @mcp.tool()
 def raise_dispute(
     target_ip_id: str,
-    dispute_evidence_hash: str,
     target_tag: str,
-    data: str = "0x"
+    cid: str,
+    bond_amount: str,
+    liveness: int = 2592000
 ) -> str:
     """
     Raises a dispute against an IP asset.
 
     Args:
-        target_ip_id: The IP ID to dispute
-        dispute_evidence_hash: Hash or link to the evidence for the dispute
-        target_tag: Tag identifying the dispute type (e.g., "copyright", "trademark")
-        data: Optional additional data for the dispute
+        target_ip_id: The IP ID to disputesssss\n
+        target_tag: Tag identifying the dispute type (e.g., "IMPROPER_REGISTRATION", "PLAGIARISM", "FRAUDULENT_USE")\n
+        cid: The Content Identifier (CID) for the dispute evidence, obtained from IPFS (e.g., "QmbWqxBEKC3P8tqsKc98xmWNzrzDtRLMiMPL8wBuTGsMnR")\n
+        bond_amount: The amount of the bond to post for the dispute, as a string in ether (e.g., "0.1")\n
+        liveness: The liveness of the dispute in seconds (defaults to 30 days)\n
 
     Returns:
         str: Result message with transaction hash and dispute ID
@@ -460,15 +466,20 @@ def raise_dispute(
     try:
         result = story_service.raise_dispute(
             target_ip_id=target_ip_id,
-            dispute_evidence_hash=dispute_evidence_hash,
             target_tag=target_tag,
-            data=data
+            cid=cid,
+            bond_amount=bond_amount,
+            liveness=liveness
         )
         
-        dispute_id = result.get('disputeId', 'Unknown')
-        return f"Successfully raised dispute. Transaction hash: {result['txHash']}, Dispute ID: {dispute_id}"
+        if 'error' in result:
+            return f"Error raising dispute: {result['error']}"
+        
+        dispute_id = result.get('dispute_id', 'Unknown')
+        return f"Successfully raised dispute. Transaction hash: {result['tx_hash']}, Dispute ID: {dispute_id}"
     except Exception as e:
         return f"Error raising dispute: {str(e)}"
+
 
 
 # @mcp.tool()

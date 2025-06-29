@@ -3,7 +3,7 @@ from story_protocol_python_sdk.story_client import StoryClient
 from story_protocol_python_sdk.resources.NFTClient import NFTClient
 import requests
 import os
-from typing import Union
+from typing import Union, Optional
 import time
 import json
 import sys
@@ -85,6 +85,9 @@ class StoryService:
             self.web3, chain_id=CHAIN_IDS["mainnet"]
         )  # Story Protocol chain ID for .ip domains
 
+    
+
+
     def get_license_terms(self, license_terms_id: int) -> dict:
         """Get the license terms for a specific ID."""
         response = self.client.License.getLicenseTerms(license_terms_id)
@@ -117,11 +120,11 @@ class StoryService:
         self,
         licensor_ip_id: str,
         license_terms_id: int,
-        receiver: str = None,
+        receiver: Optional[str] = None,
         amount: int = 1,
-        max_minting_fee: int = None,
-        max_revenue_share: int = None,
-        license_template: str = None
+        max_minting_fee: Optional[int] = None,
+        max_revenue_share: Optional[int] = None,
+        license_template: Optional[str] = None
     ) -> dict:
         """
         Mints license tokens for the license terms attached to an IP.
@@ -399,9 +402,9 @@ class StoryService:
         self,
         commercial_rev_share: int,
         derivatives_allowed: bool,
-        registration_metadata: dict = None,
-        recipient: str = None,
-        spg_nft_contract: str = None,
+        registration_metadata: Optional[dict] = None,
+        recipient: Optional[str] = None,
+        spg_nft_contract: Optional[str] = None,
     ) -> dict:
         """
         Mint an NFT, register it as an IP Asset, and attach PIL terms.
@@ -494,13 +497,13 @@ class StoryService:
         symbol: str,
         is_public_minting: bool = True,
         mint_open: bool = True,
-        mint_fee_recipient: str = None,
+        mint_fee_recipient: Optional[str] = None,
         contract_uri: str = "",
         base_uri: str = "",
-        max_supply: int = None,
-        mint_fee: int = None,
-        mint_fee_token: str = None,
-        owner: str = None,
+        max_supply: Optional[int] = None,
+        mint_fee: Optional[int] = None,
+        mint_fee_token: Optional[str] = None,
+        owner: Optional[str] = None,
     ) -> dict:
         """
         Create a new SPG NFT collection that can be used for minting and registering IP assets.
@@ -666,7 +669,7 @@ class StoryService:
         self,
         nft_contract: str,
         token_id: int,
-        ip_metadata: dict = None,
+        ip_metadata: Optional[dict] = None,
     ) -> dict:
         """
         Register an NFT as IP, creating a corresponding IP record.
@@ -717,7 +720,7 @@ class StoryService:
         self,
         ip_id: str,
         license_terms_id: int,
-        license_template: str = None
+        license_template: Optional[str] = None
     ) -> dict:
         """
         Attaches license terms to an IP.
@@ -761,7 +764,7 @@ class StoryService:
         max_minting_fee: int = 0,
         max_rts: int = 0,
         max_revenue_share: int = 0,
-        license_template: str = None
+        license_template: Optional[str] = None
     ) -> dict:
         """
         Registers a derivative directly with parent IP's license terms, without needing license tokens.
@@ -884,69 +887,153 @@ class StoryService:
     def raise_dispute(
         self,
         target_ip_id: str,
-        dispute_evidence_hash: str,
         target_tag: str,
-        data: str = "0x"
+        cid: str,
+        bond_amount: str,
+        liveness: int = 2592000,
     ) -> dict:
         """
         Raises a dispute against an IP asset.
 
         Args:
             target_ip_id: The IP ID to dispute
-            dispute_evidence_hash: Hash of the evidence for the dispute
-            target_tag: Tag identifying the dispute type
-            data: Optional additional data for the dispute
+            target_tag: The tag for the dispute.
+            cid: The Content Identifier (CID) for the dispute evidence, obtained from IPFS.
+            bond_amount: The amount of the bond to post for the dispute, as a string in ether (e.g., "0.1").
+            liveness: The liveness of the dispute in seconds (defaults to 30 days).
 
         Returns:
             dict: Dictionary with the transaction hash and dispute ID
         """
+
+         
+        # try:
+        #     # Get the DisputeModule client
+        #     dispute_module_address = self.contracts.get("DisputeModule")
+        #     if not dispute_module_address:
+        #         raise ValueError("DisputeModule address not found in contracts")
+                
+        #     from story_protocol_python_sdk.abi.DisputeModule.DisputeModule_client import DisputeModuleClient
+        #     dispute_module_client = DisputeModuleClient(self.web3)
+            
+        #     # If it's a string but doesn't start with "0x", convert from text.
+        #     if isinstance(target_tag, str) and not target_tag.startswith("0x"):
+        #         copyright_tag = Web3.keccak(text="copyright").hex()
+        #     else:
+        #         # Otherwise, if it's a string, it must be a hex string.
+        #         target_tag = Web3.to_bytes(hexstr=target_tag) if isinstance(target_tag, str) else target_tag
+
+        #     # Convert hex string data to bytes if necessary
+        #     if isinstance(data, str) and data.startswith("0x"):
+        #         # If data is a hex string, convert it from hex.
+        #         data = Web3.to_bytes(hexstr=data)
+        #     elif isinstance(data, str):
+        #         # Otherwise, if it's a string, convert it from text.
+        #         data = Web3.to_bytes(text=data)
+            
+        #     # Build and send transaction
+        #     from story_protocol_python_sdk.utils.transaction_utils import build_and_send_transaction
+        #     response = build_and_send_transaction(
+        #         self.web3,
+        #         self.account,
+        #         dispute_module_client.build_raiseDispute_transaction,
+        #         target_ip_id,
+        #         dispute_evidence_hash,
+        #         target_tag,
+        #         data
+        
+        if not target_ip_id.lower().startswith("0x"):
+            raise ValueError("target_ip_id must be a hexadecimal string.")
+
         try:
-            # Get the DisputeModule client
+            # Clean and convert bond amount to wei as integer
+            clean_bond_amount = bond_amount.strip("'\"")
+            bond_amount_float = float(clean_bond_amount)
+            bond_amount_in_wei = int(Web3.to_wei(bond_amount_float, "ether"))
+            
+            print(f"Debug: original={bond_amount}, cleaned={clean_bond_amount}, float={bond_amount_float}, wei={bond_amount_in_wei}")
+            
+            # Get the DisputeModule contract address
             dispute_module_address = self.contracts.get("DisputeModule")
             if not dispute_module_address:
                 raise ValueError("DisputeModule address not found in contracts")
-                
-            from story_protocol_python_sdk.abi.DisputeModule.DisputeModule_client import DisputeModuleClient
-            dispute_module_client = DisputeModuleClient(self.web3, contract_address=dispute_module_address)
             
-            # If it's a string but doesn't start with "0x", convert from text.
-            if isinstance(target_tag, str) and not target_tag.startswith("0x"):
-                target_tag = Web3.to_bytes(text=target_tag)
-            else:
-                # Otherwise, if it's a string, it must be a hex string.
-                target_tag = Web3.to_bytes(hexstr=target_tag) if isinstance(target_tag, str) else target_tag
+            # Ensure target_ip_id is a checksummed address
+            target_ip_id = self.web3.to_checksum_address(target_ip_id)
+            
+            # Convert CID to bytes32 hash for dispute evidence
+            # According to Story Protocol docs, this should be an IPFS CID converted to bytes32 hash
+            cid_hash = self.web3.keccak(text=cid)
+            
+            # Convert target_tag to bytes32
+            target_tag_bytes = self._get_dispute_tag_bytes(target_tag)
 
-            # Convert hex string data to bytes if necessary
-            if isinstance(data, str) and data.startswith("0x"):
-                # If data is a hex string, convert it from hex.
-                data = Web3.to_bytes(hexstr=data)
-            elif isinstance(data, str):
-                # Otherwise, if it's a string, convert it from text.
-                data = Web3.to_bytes(text=data)
+            # Encode the data parameter (liveness, token address, bond amount)
+            # According to UMA Arbitration Policy docs: abi.encode(liveness, token, bondAmount)
+            from eth_abi import encode
+            # Use the native token address (zero address) and our bond amount
+            token_address = "0x0000000000000000000000000000000000000000"
+            data = encode(['uint256', 'address', 'uint256'], [liveness, token_address, bond_amount_in_wei])
             
-            # Build and send transaction
-            from story_protocol_python_sdk.utils.transaction_utils import build_and_send_transaction
-            response = build_and_send_transaction(
-                self.web3,
-                self.account,
-                dispute_module_client.build_raiseDispute_transaction,
-                target_ip_id,
-                dispute_evidence_hash,
-                target_tag,
-                data
-            )
+            print(f"Debug: target_ip_id={target_ip_id}")
+            print(f"Debug: cid_hash={cid_hash.hex()}")
+            print(f"Debug: target_tag_bytes={target_tag_bytes.hex()}")
+            print(f"Debug: data={data.hex()}")
             
+            # Try to use the SDK's dispute functionality if available
+            try:
+                # Check if the client has a dispute attribute
+                if hasattr(self.client, 'dispute'):
+                    response = self.client.dispute.raise_dispute(
+                        target_ip_id=target_ip_id,
+                        cid=cid,
+                        target_tag=target_tag,
+                        bond=bond_amount_in_wei,
+                        liveness=liveness,
+                    )
+                    return {
+                        "tx_hash": response.tx_hash,
+                        "dispute_id": response.dispute_id,
+                    }
+                else:
+                    # Fall back to direct contract interaction
+                    raise AttributeError("No dispute attribute found")
+            except Exception as sdk_error:
+                print(f"SDK approach failed: {sdk_error}, trying DisputeModuleClient")
+                
+                # Use the proper SDK DisputeModuleClient
+                from story_protocol_python_sdk.abi.DisputeModule.DisputeModule_client import DisputeModuleClient
+                dispute_module_client = DisputeModuleClient(self.web3)
+                
+                # Build and send transaction using SDK utilities
+                from story_protocol_python_sdk.utils.transaction_utils import build_and_send_transaction
+                response = build_and_send_transaction(
+                    self.web3,
+                    self.account,
+                    dispute_module_client.build_raiseDispute_transaction,
+                    target_ip_id,
+                    cid_hash,
+                    target_tag_bytes,
+                    data
+                )
+            
+
             # Parse dispute ID from logs (this would need to be implemented)
-            dispute_id = self._parse_dispute_id_from_logs(response['txReceipt'])
+            #dispute_id = self._parse_dispute_id_from_logs(response['txReceipt'])
+            # Parse dispute ID from logs
+            dispute_id = self._parse_dispute_id_from_logs(response.get('txReceipt', {}))
             
             return {
-                'txHash': response['txHash'],
-                'disputeId': dispute_id
+                "tx_hash": response.get('txHash'),
+                "dispute_id": dispute_id,
+                #'txHash': response['txHash'],
+                #'disputeId': dispute_id
             }
-            
         except Exception as e:
-            print(f"Error raising dispute: {str(e)}")
-            raise
+            # TODO: better error handling
+            return {"error": str(e)}
+    #         print(f"Error raising dispute (story_service.py): {str(e)}")
+    #         raise
             
     def _parse_dispute_id_from_logs(self, tx_receipt: dict) -> int:
         """
@@ -955,22 +1042,112 @@ class StoryService:
         Args:
             tx_receipt: The transaction receipt
             
-        Returns:
-            int: The dispute ID
-        """
+    #     Returns:
+    #         int: The dispute ID
+    #     """
         # This is a placeholder implementation
         # In a real implementation, we would look for the DisputeRaised event
         # and extract the dispute ID from it
         try:
             event_signature = self.web3.keccak(text="DisputeRaised(uint256,address,bytes32,string)").hex()
             
-            for log in tx_receipt['logs']:
-                if log.get('topics') and log['topics'][0].hex() == event_signature:
-                    # Extract dispute ID from the first topic after the event signature
-                    dispute_id = int(log['topics'][1].hex(), 16)
-                    return dispute_id
+    #         for log in tx_receipt['logs']:
+    #             if log.get('topics') and log['topics'][0].hex() == event_signature:
+    #                 # Extract dispute ID from the first topic after the event signature
+    #                 dispute_id = int(log['topics'][1].hex(), 16)
+    #                 return dispute_id
                     
+    #         return 0  # Return 0 if no dispute ID found
+    #     except Exception as e:
+    #         print(f"Error parsing dispute ID: {str(e)}")
+    #         return 0
+            for log in tx_receipt.get('logs', []):
+                if log.get('topics') and len(log['topics']) > 1:
+                    if log['topics'][0].hex() == event_signature:
+                        # Extract dispute ID from the first topic after the event signature
+                        dispute_id = int(log['topics'][1].hex(), 16)
+                        return dispute_id
+                        
             return 0  # Return 0 if no dispute ID found
         except Exception as e:
             print(f"Error parsing dispute ID: {str(e)}")
             return 0
+
+    def _get_dispute_tag_bytes(self, target_tag: str) -> bytes:
+        """
+        Get the bytes32 representation of a dispute tag.
+        
+        Args:
+            target_tag: The dispute tag string or hex value
+            
+        Returns:
+            bytes: The bytes32 representation of the tag
+        """
+        # If it's already a hex string, use it directly
+        if target_tag.startswith("0x"):
+            return Web3.to_bytes(hexstr=target_tag)
+        
+        # Try to get from SDK constants first (if available)
+        try:
+            from story_protocol_python_sdk.constants import DISPUTE_TAGS
+            if target_tag in DISPUTE_TAGS:
+                return Web3.to_bytes(hexstr=DISPUTE_TAGS[target_tag])
+        except (ImportError, AttributeError):
+            pass
+        
+        # Try to read from DisputeModule contract constants
+        try:
+            dispute_tag_bytes = self._get_dispute_tag_from_contract(target_tag)
+            if dispute_tag_bytes:
+                return dispute_tag_bytes
+        except Exception as e:
+            print(f"Failed to read dispute tag from contract: {e}")
+        
+        # Convert tag name to bytes32 format (as a last resort)
+        # This follows the same pattern as the official tags
+        tag_bytes = target_tag.encode('utf-8')
+        if len(tag_bytes) > 32:
+            raise ValueError(f"Tag '{target_tag}' is too long (max 32 bytes)")
+        
+        # Pad to 32 bytes with null bytes
+        padded_bytes = tag_bytes.ljust(32, b'\x00')
+        return padded_bytes
+
+    def _get_dispute_tag_from_contract(self, target_tag: str) -> bytes:
+        """
+        Try to get dispute tag from the DisputeModule contract.
+        
+        Args:
+            target_tag: The dispute tag string
+            
+        Returns:
+            bytes: The bytes32 representation if found, None otherwise
+        """
+        try:
+            dispute_module_address = self.contracts.get("DisputeModule")
+            if not dispute_module_address:
+                return None
+                
+            # Create a minimal ABI for reading constants
+            dispute_module_abi = [
+                {
+                    "inputs": [],
+                    "name": target_tag,
+                    "outputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],
+                    "stateMutability": "view",
+                    "type": "function"
+                }
+            ]
+            
+            dispute_contract = self.web3.eth.contract(
+                address=dispute_module_address,
+                abi=dispute_module_abi
+            )
+            
+            # Try to call the constant function
+            result = getattr(dispute_contract.functions, target_tag)().call()
+            return Web3.to_bytes(hexstr=result.hex() if isinstance(result, int) else result)
+            
+        except Exception:
+            # If the contract doesn't have this constant, return None
+            return None
