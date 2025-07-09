@@ -402,6 +402,8 @@ class StoryService:
         self,
         commercial_rev_share: int,
         derivatives_allowed: bool,
+        commercial_use: bool = True,
+        minting_fee: int = 0,
         registration_metadata: Optional[dict] = None,
         recipient: Optional[str] = None,
         spg_nft_contract: Optional[str] = None,
@@ -412,7 +414,9 @@ class StoryService:
         Args:
             commercial_rev_share: Percentage of revenue share (0-100)
             derivatives_allowed: Whether derivatives are allowed
-            registration_metadata: Optional dict containing full metadata structure
+            commercial_use: [Optional]Whether this is a commercial license (defaults to True)
+            minting_fee: [Optional] Fee required to mint license tokens (defaults to 0)
+            registration_metadata: [Optional] dict containing full metadata structure
             recipient: Optional recipient address or domain name (defaults to sender)
             spg_nft_contract: Optional SPG NFT contract address (defaults to network-specific default)
         """
@@ -427,9 +431,9 @@ class StoryService:
             # Use default SPG NFT contract if none provided
             if spg_nft_contract is None:
                 spg_nft_contract = self.contracts["SPG_NFT"]
-
-            # Use the royalty policy from the contracts dictionary
-            royalty_policy = self.contracts["RoyaltyPolicyLAP"]
+            
+            # Use appropriate royalty policy based on commercial use
+            royalty_policy = self.contracts["RoyaltyPolicyLAP"] if commercial_use else "0x0000000000000000000000000000000000000000"
 
             # Create terms matching our working structure
             terms = [
@@ -437,9 +441,9 @@ class StoryService:
                     "terms": {
                         "transferable": True,
                         "royalty_policy": royalty_policy,
-                        "default_minting_fee": 0,
+                        "default_minting_fee": minting_fee,
                         "expiration": 0,
-                        "commercial_use": commercial_rev_share > 0,
+                        "commercial_use": commercial_use,
                         "commercial_attribution": False,
                         "commercializer_checker": "0x0000000000000000000000000000000000000000",
                         "commercializer_checker_data": "0x0000000000000000000000000000000000000000",
@@ -454,8 +458,8 @@ class StoryService:
                         "uri": "",
                     },
                     "licensing_config": {
-                        "is_set": True,
-                        "minting_fee": 0,
+                        "is_set": Flase,
+                        "minting_fee": minting_fee,
                         "hook_data": "",
                         "licensing_hook": "0x0000000000000000000000000000000000000000",
                         "commercial_rev_share": commercial_rev_share,
@@ -531,7 +535,12 @@ class StoryService:
             The underlying SDK supports additional transaction options (tx_options)
             which are intentionally not exposed here as they're too low-level for agent interfaces.
         """
+
         try:
+            # Validate mint fee recipient when there's a fee
+            if mint_fee_recipient is None and mint_fee is not None and mint_fee > 0:
+                raise Exception("Mint fee recipient is required if mint fee is greater than 0")
+            
             # Default mint_fee_recipient to zero address if not provided
             if mint_fee_recipient is None:
                 mint_fee_recipient = "0x0000000000000000000000000000000000000000"
@@ -541,9 +550,18 @@ class StoryService:
                     mint_fee_recipient
                 )
 
-            # Resolve owner address if provided
+            # Resolve owner address if provided, otherwise use sender's address
             if owner:
                 owner = self.address_resolver.resolve_address(owner)
+            else:
+                owner = self.account.address
+
+            # Handle mint_fee_token default: if mint_fee >= 0 and mint_fee_token is None, 
+            # default to zero address (native token)
+            if mint_fee is not None and mint_fee >= 0 and mint_fee_token is None:
+                mint_fee_token = "0x0000000000000000000000000000000000000000"
+
+        
 
             # Use the manually initialized NFTClient instead of client.NFT
             response = self.nft_client.createNFTCollection(
@@ -568,6 +586,109 @@ class StoryService:
 
         except Exception as e:
             print(f"Error creating SPG NFT collection: {str(e)}")
+            raise
+
+    def mint_nft(
+        self,
+        spg_nft_contract: str,
+        recipient: Optional[str] = None,
+        metadata_uri: str = "",
+    ) -> dict:
+        """
+        Mint an NFT from an existing SPG collection.
+
+        Args:
+            spg_nft_contract: The address of the SPG NFT contract to mint from
+            recipient: Optional recipient address (defaults to sender)
+            metadata_uri: Optional metadata URI for the NFT (defaults to empty string)
+
+        Returns:
+            dict: Dictionary with the transaction hash, token ID, and contract address
+        """
+        try:
+            # Ensure the contract address is checksummed
+            spg_nft_contract = self.web3.to_checksum_address(spg_nft_contract)
+            
+            # Use sender address if no recipient specified
+            if recipient is None:
+                recipient = self.account.address
+            else:
+                recipient = self.web3.to_checksum_address(recipient)
+            
+            # Call the SDK function
+            result = self.nft_client.mint(
+                spg_nft_contract=spg_nft_contract,
+                recipient=recipient,
+                metadata_uri=metadata_uri
+            )
+            
+            return {
+                'txHash': result.get('txHash'),
+                'tokenId': result.get('tokenId'),
+                'nftContract': spg_nft_contract
+            }
+            
+        except Exception as e:
+            print(f"Error minting NFT: {str(e)}")
+            raise
+
+    def mint_and_register_ip_asset(
+        self,
+        spg_nft_contract: str,
+        recipient: Optional[str] = None,
+        ip_metadata: Optional[dict] = None,
+    ) -> dict:
+        """
+        Mint an NFT and register it as an IP asset in one transaction (without license terms).
+
+        Args:
+            spg_nft_contract: The address of the SPG NFT contract to mint from
+            recipient: Optional recipient address (defaults to sender)
+            ip_metadata: Optional metadata for the IP
+                ip_metadata_uri: Optional metadata URI for the IP
+                ip_metadata_hash: Optional metadata hash for the IP
+                nft_metadata_uri: Optional metadata URI for the NFT
+                nft_metadata_hash: Optional metadata hash for the NFT
+
+        Returns:
+            dict: Dictionary with the transaction hash, IP ID, token ID, and contract address
+        """
+        try:
+            # Ensure the contract address is checksummed
+            spg_nft_contract = self.web3.to_checksum_address(spg_nft_contract)
+            
+            # Use sender address if no recipient specified
+            if recipient is None:
+                recipient = self.account.address
+            else:
+                recipient = self.web3.to_checksum_address(recipient)
+            
+            # Prepare metadata if provided
+            metadata_dict = None
+            if ip_metadata:
+                metadata_dict = {
+                    'ip_metadata_uri': ip_metadata.get('ip_metadata_uri', ""),
+                    'ip_metadata_hash': ip_metadata.get('ip_metadata_hash', "0x0000000000000000000000000000000000000000000000000000000000000000"),
+                    'nft_metadata_uri': ip_metadata.get('nft_metadata_uri', ""),
+                    'nft_metadata_hash': ip_metadata.get('nft_metadata_hash', "0x0000000000000000000000000000000000000000000000000000000000000000"),
+                }
+            
+            # Call the SDK function
+            result = self.client.IPAsset.mintAndRegisterIpAsset(
+                spg_nft_contract=spg_nft_contract,
+                recipient=recipient,
+                ip_metadata=metadata_dict
+            )
+            
+            return {
+                'txHash': result.get('txHash'),
+                'ipId': result.get('ipId'),
+                'tokenId': result.get('tokenId'),
+                'nftContract': spg_nft_contract
+            }
+            
+        except Exception as e:
+            print(f"Error minting and registering IP asset: {str(e)}")
             raise
 
     # def register_pil_terms(
@@ -944,7 +1065,8 @@ class StoryService:
         
         if not target_ip_id.lower().startswith("0x"):
             raise ValueError("target_ip_id must be a hexadecimal string.")
-
+        if liveness < 2592000 or liveness > 31536000:
+                raise Exception("Liveness must be between 30 days and 1 year")
         try:
             # Clean and convert bond amount to wei as integer
             clean_bond_amount = bond_amount.strip("'\"")
@@ -973,12 +1095,9 @@ class StoryService:
             from eth_abi import encode
             # Use the native token address (zero address) and our bond amount
             token_address = "0x0000000000000000000000000000000000000000"
+            
             data = encode(['uint256', 'address', 'uint256'], [liveness, token_address, bond_amount_in_wei])
             
-            print(f"Debug: target_ip_id={target_ip_id}")
-            print(f"Debug: cid_hash={cid_hash.hex()}")
-            print(f"Debug: target_tag_bytes={target_tag_bytes.hex()}")
-            print(f"Debug: data={data.hex()}")
             
             # Try to use the SDK's dispute functionality if available
             try:
@@ -1019,7 +1138,7 @@ class StoryService:
             
 
             # Parse dispute ID from logs (this would need to be implemented)
-            #dispute_id = self._parse_dispute_id_from_logs(response['txReceipt'])
+            # dispute_id = self._parse_dispute_id_from_logs(response['txReceipt'])
             # Parse dispute ID from logs
             dispute_id = self._parse_dispute_id_from_logs(response.get('txReceipt', {}))
             
