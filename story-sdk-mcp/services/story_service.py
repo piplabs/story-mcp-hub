@@ -14,9 +14,11 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from utils.address_resolver import create_address_resolver
 from utils.contract_addresses import get_contracts_by_chain_id, CHAIN_IDS
+from .erc20_abi import ERC20_ABI, ERC20_FUNCTIONS
 
 
 class StoryService:
+
     def __init__(self, rpc_url: str, private_key: str, network: str = None):
         """
         Initialize Story Protocol service with RPC URL and private key.
@@ -85,7 +87,85 @@ class StoryService:
             self.web3, chain_id=CHAIN_IDS["mainnet"]
         )  # Story Protocol chain ID for .ip domains
 
+    def _get_erc20_contract(self, token_address: str):
+        """
+        Create an ERC20 contract instance for the given token address.
+        
+        Args:
+            token_address: The address of the ERC20 token contract
+            
+        Returns:
+            Contract: Web3 contract instance for the ERC20 token
+        """
+        token_address = self.web3.to_checksum_address(token_address)
+        return self.web3.eth.contract(address=token_address, abi=ERC20_ABI)
     
+    def get_token_info(self, token_address: str) -> dict:
+        """
+        Get basic information about an ERC20 token.
+        
+        Args:
+            token_address: The address of the ERC20 token contract
+            
+        Returns:
+            dict: Token information including name, symbol, decimals, and total supply
+        """
+        try:
+            token_contract = self._get_erc20_contract(token_address)
+            
+            # Get token information
+            name = token_contract.functions.name().call()
+            symbol = token_contract.functions.symbol().call()
+            decimals = token_contract.functions.decimals().call()
+            total_supply = token_contract.functions.totalSupply().call()
+            
+            return {
+                'address': token_address,
+                'name': name,
+                'symbol': symbol,
+                'decimals': decimals,
+                'totalSupply': total_supply,
+                'totalSupplyFormatted': total_supply / (10 ** decimals)
+            }
+            
+        except Exception as e:
+            print(f"Error getting token info: {str(e)}")
+            raise
+    
+    def get_token_balance(self, token_address: str, owner_address: Optional[str] = None) -> dict:
+        """
+        Get the token balance for a specific address.
+        
+        Args:
+            token_address: The address of the ERC20 token contract
+            owner_address: The address to check balance for (defaults to current account)
+            
+        Returns:
+            dict: Balance information in both raw and formatted values
+        """
+        try:
+            token_contract = self._get_erc20_contract(token_address)
+            
+            if owner_address is None:
+                owner_address = self.account.address
+            else:
+                owner_address = self.web3.to_checksum_address(owner_address)
+            
+            # Get balance and decimals
+            balance = token_contract.functions.balanceOf(owner_address).call()
+            decimals = token_contract.functions.decimals().call()
+            
+            return {
+                'address': owner_address,
+                'token': token_address,
+                'balanceRaw': balance,
+                'balanceFormatted': balance / (10 ** decimals),
+                'decimals': decimals
+            }
+            
+        except Exception as e:
+            print(f"Error getting token balance: {str(e)}")
+            raise
 
 
     def get_license_terms(self, license_terms_id: int) -> dict:
@@ -407,9 +487,11 @@ class StoryService:
         registration_metadata: Optional[dict] = None,
         recipient: Optional[str] = None,
         spg_nft_contract: Optional[str] = None,
+        spg_nft_contract_max_minting_fee: Optional[int] = None,
     ) -> dict:
         """
         Mint an NFT, register it as an IP Asset, and attach PIL terms.
+        Automatically detects if the SPG contract requires a minting fee and handles it appropriately.
 
         Args:
             commercial_rev_share: Percentage of revenue share (0-100)
@@ -419,6 +501,9 @@ class StoryService:
             registration_metadata: [Optional] dict containing full metadata structure
             recipient: Optional recipient address or domain name (defaults to sender)
             spg_nft_contract: Optional SPG NFT contract address (defaults to network-specific default)
+            spg_nft_contract_max_minting_fee: Optional maximum minting fee user is willing to pay for SPG contract (in wei).
+                                            If None, will accept whatever the contract requires.
+                                            If specified, will reject if contract requires more than this amount.
         """
         try:
             # Resolve recipient address if provided
@@ -431,6 +516,18 @@ class StoryService:
             # Use default SPG NFT contract if none provided
             if spg_nft_contract is None:
                 spg_nft_contract = self.contracts["SPG_NFT"]
+            
+            # Check if the contract requires a minting fee
+            fee_info = self.get_spg_nft_contract_minting_fee(spg_nft_contract)
+            required_fee = fee_info['mintFee']
+            
+            # Validate against user's maximum if specified
+            if spg_nft_contract_max_minting_fee is not None and required_fee > spg_nft_contract_max_minting_fee:
+                raise ValueError(
+                    f"SPG contract requires minting fee of {required_fee} wei, "
+                    f"but your maximum is {spg_nft_contract_max_minting_fee} wei. "
+                    f"Increase spg_nft_contract_max_minting_fee or use a different contract."
+                )
             
             # Use appropriate royalty policy based on commercial use
             royalty_policy = self.contracts["RoyaltyPolicyLAP"] if commercial_use else "0x0000000000000000000000000000000000000000"
@@ -458,7 +555,7 @@ class StoryService:
                         "uri": "",
                     },
                     "licensing_config": {
-                        "is_set": Flase,
+                        "is_set": False,
                         "minting_fee": minting_fee,
                         "hook_data": "",
                         "licensing_hook": "0x0000000000000000000000000000000000000000",
@@ -482,6 +579,62 @@ class StoryService:
             if registration_metadata:
                 kwargs["ip_metadata"] = registration_metadata
 
+            # Add tx_options if fee is required (this is the key fix)
+            if required_fee > 0:
+                fee_ether = self.web3.from_wei(required_fee, 'ether')
+                print(f"SPG contract requires minting fee: {required_fee} wei ({fee_ether} IP). Using alternative approach for paid contracts.")
+                if spg_nft_contract_max_minting_fee is not None:
+                    max_ether = self.web3.from_wei(spg_nft_contract_max_minting_fee, 'ether')
+                    print(f"User's maximum: {spg_nft_contract_max_minting_fee} wei ({max_ether} IP)")
+                
+                # For paid SPG contracts, use separate mint and register approach
+                # This avoids the SDK limitation with mintAndRegisterIpAssetWithPilTerms for paid contracts
+                try:
+                    # Step 1: Mint and register IP asset (without terms)
+                    mint_result = self.client.IPAsset.mint_and_register_ip_asset_with_pil_terms(
+                        spg_nft_contract=spg_nft_contract,
+                        recipient=resolved_recipient,
+                        ip_metadata=registration_metadata,
+                        tx_options={'value': required_fee}
+                    )
+                    
+                    ip_id = mint_result.get('ipId')
+                    if not ip_id:
+                        raise Exception("Failed to get IP ID from mint result")
+                    
+                    # Step 2: Register PIL terms
+                    terms_data = terms[0]["terms"]  # Extract the terms from the array structure
+                    pil_result = self.client.License.registerPILTerms(**terms_data)
+                    license_terms_id = pil_result.get('licenseTermsId')
+                    
+                    if not license_terms_id:
+                        raise Exception("Failed to get license terms ID from PIL registration")
+                    
+                    # Step 3: Attach terms to IP
+                    attach_result = self.client.License.attachLicenseTerms(
+                        ip_id=ip_id,
+                        license_terms_id=license_terms_id
+                    )
+                    
+                    return {
+                        "txHash": mint_result.get("txHash"),
+                        "ipId": ip_id,
+                        "tokenId": mint_result.get("tokenId"),
+                        "licenseTermsIds": [license_terms_id],
+                        "actualMintingFee": required_fee,
+                        "maxMintingFee": spg_nft_contract_max_minting_fee,
+                        "_multiStep": True,  # Indicate this was a multi-step process
+                        "_mintTxHash": mint_result.get("txHash"),
+                        "_pilTxHash": pil_result.get("txHash"),
+                        "_attachTxHash": attach_result.get("txHash"),
+                    }
+                except Exception as fallback_error:
+                    print(f"Fallback approach failed: {str(fallback_error)}")
+                    # If fallback fails, try the original approach anyway
+                    kwargs["tx_options"] = {'value': required_fee}
+            else:
+                print("SPG contract is free. Using SDK without additional fees.")
+
             response = self.client.IPAsset.mintAndRegisterIpAssetWithPilTerms(**kwargs)
 
             return {
@@ -489,6 +642,8 @@ class StoryService:
                 "ipId": response.get("ipId"),
                 "tokenId": response.get("tokenId"),
                 "licenseTermsIds": response.get("licenseTermsIds"),
+                "actualMintingFee": required_fee,  # Include actual fee paid
+                "maxMintingFee": spg_nft_contract_max_minting_fee,  # Include user's limit
             }
 
         except Exception as e:
@@ -559,7 +714,7 @@ class StoryService:
             # Handle mint_fee_token default: if mint_fee >= 0 and mint_fee_token is None, 
             # default to zero address (native token)
             if mint_fee is not None and mint_fee >= 0 and mint_fee_token is None:
-                mint_fee_token = "0x0000000000000000000000000000000000000000"
+                mint_fee_token = "0x1514000000000000000000000000000000000000"
 
         
 
@@ -590,42 +745,71 @@ class StoryService:
 
     def mint_nft(
         self,
-        spg_nft_contract: str,
-        recipient: Optional[str] = None,
-        metadata_uri: str = "",
+        nft_contract: str,
+        to_address: str,
+        metadata_uri: str,
+        metadata_hash: bytes,
+        allow_duplicates: bool = False,
     ) -> dict:
         """
-        Mint an NFT from an existing SPG collection.
+        Mint an NFT from an existing SPG collection using the Story Protocol SDK.
+        
+        Uses the IPAsset.mint() method from the Story Protocol Python SDK to mint NFTs from SPG contracts.
 
         Args:
-            spg_nft_contract: The address of the SPG NFT contract to mint from
-            recipient: Optional recipient address (defaults to sender)
-            metadata_uri: Optional metadata URI for the NFT (defaults to empty string)
+            nft_contract: The address of the SPG NFT contract to mint from
+            to_address: The recipient address for the minted NFT
+            metadata_uri: The metadata URI for the NFT
+            metadata_hash: The metadata hash as bytes
+            allow_duplicates: Whether to allow minting NFTs with duplicate metadata (default: False)
 
         Returns:
             dict: Dictionary with the transaction hash, token ID, and contract address
         """
         try:
             # Ensure the contract address is checksummed
-            spg_nft_contract = self.web3.to_checksum_address(spg_nft_contract)
+            nft_contract = self.web3.to_checksum_address(nft_contract)
+            to_address = self.web3.to_checksum_address(to_address)
             
-            # Use sender address if no recipient specified
-            if recipient is None:
-                recipient = self.account.address
-            else:
-                recipient = self.web3.to_checksum_address(recipient)
+            print(f"Minting NFT from contract: {nft_contract}")
+            print(f"To address: {to_address}")
+            print(f"Metadata URI: {metadata_uri}")
+            print(f"Allow duplicates: {allow_duplicates}")
             
-            # Call the SDK function
-            result = self.nft_client.mint(
-                spg_nft_contract=spg_nft_contract,
-                recipient=recipient,
-                metadata_uri=metadata_uri
+            # Use the SDK's IPAsset.mint() method
+            tx_hash = self.client.IPAsset.mint(
+                nft_contract=nft_contract,
+                to_address=to_address,
+                metadata_uri=metadata_uri,
+                metadata_hash=metadata_hash,
+                allow_duplicates=allow_duplicates,
+                tx_options=None  # No transaction options for now
             )
             
+            # Get transaction receipt to extract token ID
+            tx_receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            
+            # Extract token ID from logs
+            token_id = None
+            try:
+                # Look for Transfer event logs to get token ID
+                transfer_event_signature = self.web3.keccak(text="Transfer(address,address,uint256)").hex()
+                for log in tx_receipt['logs']:
+                    if len(log['topics']) >= 4 and log['topics'][0].hex() == transfer_event_signature:
+                        # Token ID is the 4th topic (index 3)
+                        token_id = int(log['topics'][3].hex(), 16)
+                        break
+            except Exception as e:
+                print(f"Warning: Could not extract token ID from logs: {e}")
+                token_id = None
+            
             return {
-                'txHash': result.get('txHash'),
-                'tokenId': result.get('tokenId'),
-                'nftContract': spg_nft_contract
+                'txHash': tx_hash,
+                'tokenId': token_id,
+                'nftContract': nft_contract,
+                'recipient': to_address,
+                'metadataUri': metadata_uri,
+                'gasUsed': tx_receipt['gasUsed']
             }
             
         except Exception as e:
@@ -637,6 +821,7 @@ class StoryService:
         spg_nft_contract: str,
         recipient: Optional[str] = None,
         ip_metadata: Optional[dict] = None,
+        max_minting_fee: Optional[int] = None,
     ) -> dict:
         """
         Mint an NFT and register it as an IP asset in one transaction (without license terms).
@@ -649,6 +834,9 @@ class StoryService:
                 ip_metadata_hash: Optional metadata hash for the IP
                 nft_metadata_uri: Optional metadata URI for the NFT
                 nft_metadata_hash: Optional metadata hash for the NFT
+            max_minting_fee: Optional maximum minting fee user is willing to pay (in wei).
+                           If None, will accept whatever the contract requires.
+                           If specified, will reject if contract requires more than this amount.
 
         Returns:
             dict: Dictionary with the transaction hash, IP ID, token ID, and contract address
@@ -663,9 +851,21 @@ class StoryService:
             else:
                 recipient = self.web3.to_checksum_address(recipient)
             
+            # Check if the contract requires a minting fee
+            fee_info = self.get_spg_nft_contract_minting_fee(spg_nft_contract)
+            required_fee = fee_info['mintFee']
+            
+            # Validate against user's maximum if specified
+            if max_minting_fee is not None and required_fee > max_minting_fee:
+                raise ValueError(
+                    f"Contract requires minting fee of {required_fee} wei, "
+                    f"but your maximum is {max_minting_fee} wei. "
+                    f"Increase max_minting_fee or use a different contract."
+                )
+            
             # Prepare metadata if provided
-            metadata_dict = None
-            if ip_metadata:
+            
+            if not ip_metadata:
                 metadata_dict = {
                     'ip_metadata_uri': ip_metadata.get('ip_metadata_uri', ""),
                     'ip_metadata_hash': ip_metadata.get('ip_metadata_hash', "0x0000000000000000000000000000000000000000000000000000000000000000"),
@@ -673,18 +873,33 @@ class StoryService:
                     'nft_metadata_hash': ip_metadata.get('nft_metadata_hash', "0x0000000000000000000000000000000000000000000000000000000000000000"),
                 }
             
-            # Call the SDK function
-            result = self.client.IPAsset.mintAndRegisterIpAsset(
-                spg_nft_contract=spg_nft_contract,
+            # Prepare tx_options if fee is required
+            tx_options = None
+            if required_fee > 0:
+                fee_ether = self.web3.from_wei(required_fee, 'ether')
+                print(f"SPG contract requires minting fee: {required_fee} wei ({fee_ether} IP). Using SDK with tx_options.")
+                if max_minting_fee is not None:
+                    max_ether = self.web3.from_wei(max_minting_fee, 'ether')
+                    print(f"User's maximum: {max_minting_fee} wei ({max_ether} IP)")
+                tx_options = {'value': required_fee}
+            else:
+                print("SPG contract is free. Using SDK without additional fees.")
+            
+            # Call the SDK function with correct parameter names
+            result = self.client.IPAsset.registration_workflows_client.mintAndRegisterIp(
+                spgNftContract=spg_nft_contract,
                 recipient=recipient,
-                ip_metadata=metadata_dict
+                ipMetadata=metadata_dict,
+                allowDuplicates=True
             )
             
             return {
                 'txHash': result.get('txHash'),
                 'ipId': result.get('ipId'),
                 'tokenId': result.get('tokenId'),
-                'nftContract': spg_nft_contract
+                'nftContract': spg_nft_contract,
+                'actualMintingFee': required_fee,  # Include actual fee paid
+                'maxMintingFee': max_minting_fee   # Include user's limit
             }
             
         except Exception as e:
@@ -785,6 +1000,62 @@ class StoryService:
     #     except Exception as e:
     #         print(f"Error minting and registering NFT: {str(e)}")
     #         raise
+
+    
+
+    def get_spg_nft_contract_minting_fee(self, spg_nft_contract: str) -> dict:
+        """
+        Get the minting fee required by an SPG NFT contract.
+        
+        Args:
+            spg_nft_contract: The address of the SPG NFT contract
+            
+        Returns:
+            dict: Contains mintFee and mintFeeToken information
+        """
+        try:
+            # Ensure the contract address is checksummed
+            spg_nft_contract = self.web3.to_checksum_address(spg_nft_contract)
+            
+            # Define the ABI for the mintFee function
+            mint_fee_abi = [
+                {
+                    "inputs": [],
+                    "name": "mintFee",
+                    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+                    "stateMutability": "view",
+                    "type": "function"
+                },
+                {
+                    "inputs": [],
+                    "name": "mintFeeToken",
+                    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+                    "stateMutability": "view",
+                    "type": "function"
+                }
+            ]
+            
+            # Create contract instance
+            contract = self.web3.eth.contract(address=spg_nft_contract, abi=mint_fee_abi)
+            
+            # Get mint fee and token
+            mint_fee = contract.functions.mintFee().call()
+            mint_fee_token = contract.functions.mintFeeToken().call()
+            
+            return {
+                'mintFee': mint_fee,
+                'mintFeeToken': mint_fee_token,
+                'isNativeToken': mint_fee_token == "0x1514000000000000000000000000000000000000"
+            }
+            
+        except Exception as e:
+            print(f"Error getting SPG minting fee: {str(e)}")
+            # Return defaults if unable to read
+            return {
+                'mintFee': 0,
+                'mintFeeToken': "0x1514000000000000000000000000000000000000",
+                'isNativeToken': True
+            }
 
     def register(
         self,
@@ -949,23 +1220,267 @@ class StoryService:
             dict: Dictionary with the transaction hash
         """
         try:
-            # Ensure the token address is checksummed
+            # Ensure addresses are checksummed
+            receiver_ip_id = self.web3.to_checksum_address(receiver_ip_id)
+            payer_ip_id = self.web3.to_checksum_address(payer_ip_id)
             token = self.web3.to_checksum_address(token)
             
-            # Call the SDK function
-            result = self.client.Royalty.payRoyaltyOnBehalf(
-                receiver_ip_id=receiver_ip_id,
-                payer_ip_id=payer_ip_id,
-                token=token,
-                amount=amount
+            # Call the SDK function using the correct path
+            result = self.client.Royalty.pay_royalty_on_behalf(
+                receiver_ip_id,
+                payer_ip_id,
+                token,
+                amount
             )
             
             return {
-                'txHash': result.get('txHash')
+                'txHash': result.get('txHash') if isinstance(result, dict) else result
             }
             
         except Exception as e:
             print(f"Error paying royalty: {str(e)}")
+            raise
+
+    def estimate_gas_for_approval(
+        self,
+        token: str,
+        spender: str,
+        amount: int
+    ) -> dict:
+        """
+        Estimate gas costs for token approval transaction.
+        
+        Args:
+            token: Token contract address
+            spender: Spender contract address  
+            amount: Amount to approve
+            
+        Returns:
+            dict: Gas estimation details including price, limit, and total cost
+        """
+        try:
+            # Ensure addresses are checksummed
+            token = self.web3.to_checksum_address(token)
+            spender = self.web3.to_checksum_address(spender)
+            
+            # Create ERC20 contract instance using helper method
+            token_contract = self._get_erc20_contract(token)
+            
+            # Get current gas price
+            try:
+                current_gas_price = self.web3.eth.gas_price
+            except Exception:
+                current_gas_price = self.web3.to_wei(50, "gwei")  # Fallback
+            
+            # Estimate gas limit
+            try:
+                estimated_gas = token_contract.functions.approve(spender, amount).estimate_gas({
+                    'from': self.account.address
+                })
+                # Add 20% buffer for safety
+                gas_limit = int(estimated_gas * 1.2)
+            except Exception:
+                gas_limit = 100000  # Fallback for approve transactions
+            
+            # Calculate costs in different units
+            total_cost_wei = current_gas_price * gas_limit
+            total_cost_gwei = self.web3.from_wei(total_cost_wei, 'gwei')
+            total_cost_ip = self.web3.from_wei(total_cost_wei, 'ether')
+            
+            # Get gas price in gwei for display
+            gas_price_gwei = self.web3.from_wei(current_gas_price, 'gwei')
+            
+            return {
+                'gasPrice': current_gas_price,
+                'gasPriceGwei': float(gas_price_gwei),
+                'estimatedGasLimit': gas_limit,
+                'totalCostWei': total_cost_wei,
+                'totalCostGwei': float(total_cost_gwei),
+                'totalCostIP': float(total_cost_ip),
+                'token': token,
+                'spender': spender,
+                'amount': amount
+            }
+            
+        except Exception as e:
+            print(f"Error estimating gas: {str(e)}")
+            raise
+
+    def approve_token_for_royalty(
+        self,
+        token: str,
+        amount: int,
+        spender: Optional[str] = None,
+        operation_type: str = "royalty",
+        gas_limit: Optional[int] = None,
+        gas_price: Optional[int] = None
+    ) -> dict:
+        """
+        Approve a token contract to allow Story Protocol contracts to spend tokens.
+        
+        Args:
+            token: The token contract address to approve
+            amount: The amount to approve (use a large number for unlimited approval)
+            spender: Optional spender address. If None, will auto-determine based on operation_type
+            operation_type: Type of operation ("royalty", "licensing", "minting", "custom")
+                          Only used when spender is None to auto-determine the correct contract
+            gas_limit: Optional custom gas limit. If None, will estimate automatically
+            gas_price: Optional custom gas price in wei. If None, uses network gas price
+            
+        Returns:
+            dict: Dictionary with the transaction hash and gas information
+            
+        Note:
+            - For most users, leave spender=None and specify operation_type
+            - Only set spender manually for custom contracts or advanced use cases
+            - gas_limit and gas_price are optional for advanced users who want control
+            - Common operation_types:
+              * "royalty" -> Uses RoyaltyModule (for pay_royalty_on_behalf)
+              * "licensing" -> Uses LicensingModule (for mint_license_tokens) 
+              * "minting" -> Uses default SPG_NFT contract (for minting fees)
+              * "custom" -> Must provide spender address manually
+        """
+        try:
+            # Ensure token address is checksummed
+            token = self.web3.to_checksum_address(token)
+            
+            # Auto-determine spender based on operation type if not provided
+            if spender is None:
+                if operation_type == "royalty":
+                    spender = self.contracts.get("RoyaltyModule")
+                    if not spender:
+                        raise ValueError("RoyaltyModule address not found in contracts")
+                elif operation_type == "licensing":
+                    spender = self.contracts.get("LicensingModule")
+                    if not spender:
+                        raise ValueError("LicensingModule address not found in contracts")
+                elif operation_type == "minting":
+                    spender = self.contracts.get("SPG_NFT")
+                    if not spender:
+                        raise ValueError("SPG_NFT address not found in contracts")
+                elif operation_type == "custom":
+                    raise ValueError("For custom operations, you must provide the spender address manually")
+                else:
+                    # Fallback to royalty module for backward compatibility
+                    spender = self.contracts.get("RoyaltyModule")
+                    if not spender:
+                        # Last resort: try to get from client
+                        spender = getattr(self.client.Royalty, 'address', None)
+                        if not spender:
+                            raise ValueError(
+                                f"Unknown operation_type '{operation_type}'. "
+                                f"Use 'royalty', 'licensing', 'minting', or 'custom' with manual spender address."
+                            )
+            
+            spender = self.web3.to_checksum_address(spender)
+            
+            # Get gas estimation first to inform user
+            gas_estimate = self.estimate_gas_for_approval(token, spender, amount)
+            
+            # Use provided gas parameters or fall back to estimates
+            final_gas_limit = gas_limit if gas_limit is not None else gas_estimate['estimatedGasLimit']
+            final_gas_price = gas_price if gas_price is not None else gas_estimate['gasPrice']
+            
+            # Create ERC20 contract instance using helper method
+            token_contract = self._get_erc20_contract(token)
+            
+            # Build transaction with user-specified or estimated gas
+            tx = token_contract.functions.approve(spender, amount).build_transaction({
+                'from': self.account.address,
+                'gas': final_gas_limit,
+                'gasPrice': final_gas_price,
+                'nonce': self.web3.eth.get_transaction_count(self.account.address),
+            })
+            
+            # Calculate actual cost for reporting
+            actual_cost_wei = final_gas_price * final_gas_limit
+            actual_cost_gwei = self.web3.from_wei(actual_cost_wei, 'gwei')
+            actual_cost_ip = self.web3.from_wei(actual_cost_wei, 'ether')
+            
+            # Sign and send transaction
+            signed_tx = self.account.sign_transaction(tx)
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            
+            # Wait for transaction receipt
+            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            
+            return {
+                'txHash': receipt.transactionHash.hex(),
+                'status': receipt.status,
+                'approvedAmount': amount,
+                'spender': spender,
+                'token': token,
+                'operationType': operation_type,
+                'gasUsed': receipt.gasUsed,
+                'gasLimit': final_gas_limit,
+                'gasPrice': final_gas_price,
+                'gasPriceGwei': float(self.web3.from_wei(final_gas_price, 'gwei')),
+                'actualCostWei': actual_cost_wei,
+                'actualCostGwei': float(actual_cost_gwei),
+                'actualCostIP': float(actual_cost_ip),
+                'gasEstimate': gas_estimate
+            }
+            
+        except Exception as e:
+            print(f"Error approving token: {str(e)}")
+            raise
+
+    def check_token_allowance(
+        self,
+        token: str,
+        owner: Optional[str] = None,
+        spender: Optional[str] = None
+    ) -> dict:
+        """
+        Check the current allowance for a token.
+        
+        Args:
+            token: The token contract address
+            owner: The owner address (if None, uses current account)
+            spender: The spender address (if None, uses royalty contract)
+            
+        Returns:
+            dict: Dictionary with allowance information
+        """
+        try:
+            # Ensure token address is checksummed
+            token = self.web3.to_checksum_address(token)
+            
+            # Use current account as owner if not provided
+            if owner is None:
+                owner = self.account.address
+            else:
+                owner = self.web3.to_checksum_address(owner)
+            
+            # Get the royalty contract address if spender not provided
+            if spender is None:
+                try:
+                    spender = self.contracts.get("RoyaltyModule")
+                    if not spender:
+                        spender = getattr(self.client.Royalty, 'address', None)
+                        if not spender:
+                            raise ValueError("Could not determine royalty contract address")
+                except:
+                    raise ValueError("Could not determine royalty contract address. Please provide the spender address.")
+            
+            spender = self.web3.to_checksum_address(spender)
+            
+            # Create ERC20 contract instance using helper method
+            token_contract = self._get_erc20_contract(token)
+            
+            # Get current allowance
+            allowance = token_contract.functions.allowance(owner, spender).call()
+            
+            return {
+                'allowance': allowance,
+                'owner': owner,
+                'spender': spender,
+                'token': token,
+                'hasAllowance': allowance > 0
+            }
+            
+        except Exception as e:
+            print(f"Error checking token allowance: {str(e)}")
             raise
 
     def claim_revenue(
@@ -1010,263 +1525,60 @@ class StoryService:
         target_ip_id: str,
         target_tag: str,
         cid: str,
-        bond_amount: str,
-        liveness: int = 2592000,
+        bond_amount: int,
+        liveness: int = 30,
     ) -> dict:
         """
-        Raises a dispute against an IP asset.
+        Raises a dispute against an IP asset using the Story Protocol SDK.
 
         Args:
             target_ip_id: The IP ID to dispute
-            target_tag: The tag for the dispute.
-            cid: The Content Identifier (CID) for the dispute evidence, obtained from IPFS.
-            bond_amount: The amount of the bond to post for the dispute, as a string in ether (e.g., "0.1").
-            liveness: The liveness of the dispute in seconds (defaults to 30 days).
+            target_tag: The tag for the dispute (e.g., "IMPROPER_REGISTRATION", "PLAGIARISM", "FRAUDULENT_USE")
+            cid: The Content Identifier (CID) for the dispute evidence, obtained from IPFS
+            bond_amount: The amount of the bond to post for the dispute, as an integer in wei
+            liveness: The liveness of the dispute in days (defaults to 30 days, must be between 30 and 365 days)
 
         Returns:
             dict: Dictionary with the transaction hash and dispute ID
         """
-
-         
-        # try:
-        #     # Get the DisputeModule client
-        #     dispute_module_address = self.contracts.get("DisputeModule")
-        #     if not dispute_module_address:
-        #         raise ValueError("DisputeModule address not found in contracts")
-                
-        #     from story_protocol_python_sdk.abi.DisputeModule.DisputeModule_client import DisputeModuleClient
-        #     dispute_module_client = DisputeModuleClient(self.web3)
-            
-        #     # If it's a string but doesn't start with "0x", convert from text.
-        #     if isinstance(target_tag, str) and not target_tag.startswith("0x"):
-        #         copyright_tag = Web3.keccak(text="copyright").hex()
-        #     else:
-        #         # Otherwise, if it's a string, it must be a hex string.
-        #         target_tag = Web3.to_bytes(hexstr=target_tag) if isinstance(target_tag, str) else target_tag
-
-        #     # Convert hex string data to bytes if necessary
-        #     if isinstance(data, str) and data.startswith("0x"):
-        #         # If data is a hex string, convert it from hex.
-        #         data = Web3.to_bytes(hexstr=data)
-        #     elif isinstance(data, str):
-        #         # Otherwise, if it's a string, convert it from text.
-        #         data = Web3.to_bytes(text=data)
-            
-        #     # Build and send transaction
-        #     from story_protocol_python_sdk.utils.transaction_utils import build_and_send_transaction
-        #     response = build_and_send_transaction(
-        #         self.web3,
-        #         self.account,
-        #         dispute_module_client.build_raiseDispute_transaction,
-        #         target_ip_id,
-        #         dispute_evidence_hash,
-        #         target_tag,
-        #         data
-        
-        if not target_ip_id.lower().startswith("0x"):
-            raise ValueError("target_ip_id must be a hexadecimal string.")
-        if liveness < 2592000 or liveness > 31536000:
-                raise Exception("Liveness must be between 30 days and 1 year")
         try:
-            # Clean and convert bond amount to wei as integer
-            clean_bond_amount = bond_amount.strip("'\"")
-            bond_amount_float = float(clean_bond_amount)
-            bond_amount_in_wei = int(Web3.to_wei(bond_amount_float, "ether"))
+            # Validate inputs
+            if not target_ip_id.lower().startswith("0x"):
+                raise ValueError("target_ip_id must be a hexadecimal string.")
+            if liveness < 30 or liveness > 365:
+                raise ValueError("Liveness must be between 30 and 365 days")
+            if not isinstance(bond_amount, int) or bond_amount <= 0:
+                raise ValueError("bond_amount must be a positive integer in wei")
             
-            print(f"Debug: original={bond_amount}, cleaned={clean_bond_amount}, float={bond_amount_float}, wei={bond_amount_in_wei}")
+            # Convert liveness from days to seconds
+            liveness_seconds = liveness * 24 * 60 * 60
             
-            # Get the DisputeModule contract address
-            dispute_module_address = self.contracts.get("DisputeModule")
-            if not dispute_module_address:
-                raise ValueError("DisputeModule address not found in contracts")
+            print(f"Debug: Bond amount {bond_amount} wei ({self.web3.from_wei(bond_amount, 'ether')} IP)")
+            print(f"Debug: Liveness {liveness} days ({liveness_seconds} seconds)")
             
             # Ensure target_ip_id is a checksummed address
             target_ip_id = self.web3.to_checksum_address(target_ip_id)
             
-            # Convert CID to bytes32 hash for dispute evidence
-            # According to Story Protocol docs, this should be an IPFS CID converted to bytes32 hash
-            cid_hash = self.web3.keccak(text=cid)
-            
-            # Convert target_tag to bytes32
-            target_tag_bytes = self._get_dispute_tag_bytes(target_tag)
-
-            # Encode the data parameter (liveness, token address, bond amount)
-            # According to UMA Arbitration Policy docs: abi.encode(liveness, token, bondAmount)
-            from eth_abi import encode
-            # Use the native token address (zero address) and our bond amount
-            token_address = "0x0000000000000000000000000000000000000000"
-            
-            data = encode(['uint256', 'address', 'uint256'], [liveness, token_address, bond_amount_in_wei])
-            
-            
-            # Try to use the SDK's dispute functionality if available
-            try:
-                # Check if the client has a dispute attribute
-                if hasattr(self.client, 'dispute'):
-                    response = self.client.dispute.raise_dispute(
-                        target_ip_id=target_ip_id,
-                        cid=cid,
-                        target_tag=target_tag,
-                        bond=bond_amount_in_wei,
-                        liveness=liveness,
-                    )
-                    return {
-                        "tx_hash": response.tx_hash,
-                        "dispute_id": response.dispute_id,
-                    }
-                else:
-                    # Fall back to direct contract interaction
-                    raise AttributeError("No dispute attribute found")
-            except Exception as sdk_error:
-                print(f"SDK approach failed: {sdk_error}, trying DisputeModuleClient")
-                
-                # Use the proper SDK DisputeModuleClient
-                from story_protocol_python_sdk.abi.DisputeModule.DisputeModule_client import DisputeModuleClient
-                dispute_module_client = DisputeModuleClient(self.web3)
-                
-                # Build and send transaction using SDK utilities
-                from story_protocol_python_sdk.utils.transaction_utils import build_and_send_transaction
-                response = build_and_send_transaction(
-                    self.web3,
-                    self.account,
-                    dispute_module_client.build_raiseDispute_transaction,
-                    target_ip_id,
-                    cid_hash,
-                    target_tag_bytes,
-                    data
-                )
-            
-
-            # Parse dispute ID from logs (this would need to be implemented)
-            # dispute_id = self._parse_dispute_id_from_logs(response['txReceipt'])
-            # Parse dispute ID from logs
-            dispute_id = self._parse_dispute_id_from_logs(response.get('txReceipt', {}))
+            # Use the SDK's dispute functionality - it handles all the complex logic!
+            response = self.client.Dispute.raise_dispute(
+                target_ip_id=target_ip_id,
+                target_tag=target_tag,
+                cid=cid,
+                liveness=liveness_seconds,
+                bond=bond_amount
+            )
             
             return {
                 "tx_hash": response.get('txHash'),
-                "dispute_id": dispute_id,
-                #'txHash': response['txHash'],
-                #'disputeId': dispute_id
+                "dispute_id": response.get('disputeId'),
+                "target_ip_id": target_ip_id,
+                "bond_amount_wei": bond_amount,
+                "bond_amount_ip": float(self.web3.from_wei(bond_amount, 'ether')),
+                "liveness_days": liveness,
+                "liveness_seconds": liveness_seconds
             }
+            
         except Exception as e:
-            # TODO: better error handling
-            return {"error": str(e)}
-    #         print(f"Error raising dispute (story_service.py): {str(e)}")
-    #         raise
-            
-    def _parse_dispute_id_from_logs(self, tx_receipt: dict) -> int:
-        """
-        Parse the dispute ID from transaction logs.
-        
-        Args:
-            tx_receipt: The transaction receipt
-            
-    #     Returns:
-    #         int: The dispute ID
-    #     """
-        # This is a placeholder implementation
-        # In a real implementation, we would look for the DisputeRaised event
-        # and extract the dispute ID from it
-        try:
-            event_signature = self.web3.keccak(text="DisputeRaised(uint256,address,bytes32,string)").hex()
-            
-    #         for log in tx_receipt['logs']:
-    #             if log.get('topics') and log['topics'][0].hex() == event_signature:
-    #                 # Extract dispute ID from the first topic after the event signature
-    #                 dispute_id = int(log['topics'][1].hex(), 16)
-    #                 return dispute_id
-                    
-    #         return 0  # Return 0 if no dispute ID found
-    #     except Exception as e:
-    #         print(f"Error parsing dispute ID: {str(e)}")
-    #         return 0
-            for log in tx_receipt.get('logs', []):
-                if log.get('topics') and len(log['topics']) > 1:
-                    if log['topics'][0].hex() == event_signature:
-                        # Extract dispute ID from the first topic after the event signature
-                        dispute_id = int(log['topics'][1].hex(), 16)
-                        return dispute_id
-                        
-            return 0  # Return 0 if no dispute ID found
-        except Exception as e:
-            print(f"Error parsing dispute ID: {str(e)}")
-            return 0
+            print(f"Error raising dispute: {str(e)}")
+            raise
 
-    def _get_dispute_tag_bytes(self, target_tag: str) -> bytes:
-        """
-        Get the bytes32 representation of a dispute tag.
-        
-        Args:
-            target_tag: The dispute tag string or hex value
-            
-        Returns:
-            bytes: The bytes32 representation of the tag
-        """
-        # If it's already a hex string, use it directly
-        if target_tag.startswith("0x"):
-            return Web3.to_bytes(hexstr=target_tag)
-        
-        # Try to get from SDK constants first (if available)
-        try:
-            from story_protocol_python_sdk.constants import DISPUTE_TAGS
-            if target_tag in DISPUTE_TAGS:
-                return Web3.to_bytes(hexstr=DISPUTE_TAGS[target_tag])
-        except (ImportError, AttributeError):
-            pass
-        
-        # Try to read from DisputeModule contract constants
-        try:
-            dispute_tag_bytes = self._get_dispute_tag_from_contract(target_tag)
-            if dispute_tag_bytes:
-                return dispute_tag_bytes
-        except Exception as e:
-            print(f"Failed to read dispute tag from contract: {e}")
-        
-        # Convert tag name to bytes32 format (as a last resort)
-        # This follows the same pattern as the official tags
-        tag_bytes = target_tag.encode('utf-8')
-        if len(tag_bytes) > 32:
-            raise ValueError(f"Tag '{target_tag}' is too long (max 32 bytes)")
-        
-        # Pad to 32 bytes with null bytes
-        padded_bytes = tag_bytes.ljust(32, b'\x00')
-        return padded_bytes
-
-    def _get_dispute_tag_from_contract(self, target_tag: str) -> bytes:
-        """
-        Try to get dispute tag from the DisputeModule contract.
-        
-        Args:
-            target_tag: The dispute tag string
-            
-        Returns:
-            bytes: The bytes32 representation if found, None otherwise
-        """
-        try:
-            dispute_module_address = self.contracts.get("DisputeModule")
-            if not dispute_module_address:
-                return None
-                
-            # Create a minimal ABI for reading constants
-            dispute_module_abi = [
-                {
-                    "inputs": [],
-                    "name": target_tag,
-                    "outputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                }
-            ]
-            
-            dispute_contract = self.web3.eth.contract(
-                address=dispute_module_address,
-                abi=dispute_module_abi
-            )
-            
-            # Try to call the constant function
-            result = getattr(dispute_contract.functions, target_tag)().call()
-            return Web3.to_bytes(hexstr=result.hex() if isinstance(result, int) else result)
-            
-        except Exception:
-            # If the contract doesn't have this constant, return None
-            return None
