@@ -11,7 +11,7 @@ dependencies = [
     
     # Web3 and Story Protocol SDK
     "web3",
-    "story-protocol-python-sdk @ git+https://github.com/storyprotocol/python-sdk.git",
+    "story-protocol-python-sdk",
     
     # HTTP and API dependencies
     "httpx>=0.28.1",

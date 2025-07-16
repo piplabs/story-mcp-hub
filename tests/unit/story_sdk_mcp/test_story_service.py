@@ -98,58 +98,52 @@ class TestStoryService:
             "claimableToken": 1000
         })
 
+        # Mock NFTClient module
+        mock_client.NFTClient = Mock()
+        mock_client.NFTClient.create_nft_collection = Mock(return_value={
+            "tx_hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+            "nft_contract": SAMPLE_NFT_CONTRACT
+        })
+
         return mock_client
 
     @pytest.fixture
-    def mock_nft_client(self):
-        """Create a mock NFTClient"""
-        mock_nft_client = Mock()
-
-        mock_nft_client.createNFTCollection = Mock(return_value={
-            "txHash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-            "nftContract": SAMPLE_NFT_CONTRACT
-        })
-
-        return mock_nft_client
-
-    @pytest.fixture
-    def story_service(self, mock_env, mock_web3, mock_story_client, mock_nft_client):
+    def story_service(self, mock_env, mock_web3, mock_story_client):
         """Create a StoryService instance with mocked dependencies"""
         with patch("services.story_service.Web3", return_value=mock_web3):
             with patch("services.story_service.StoryClient", return_value=mock_story_client):
-                with patch("services.story_service.NFTClient", return_value=mock_nft_client):
-                    with patch("services.story_service.create_address_resolver") as mock_resolver_fn:
-                        # Return a mock address resolver
-                        address_resolver_mock = Mock()
-                        address_resolver_mock.resolve_address = lambda addr: addr
-                        mock_resolver_fn.return_value = address_resolver_mock
+                with patch("services.story_service.create_address_resolver") as mock_resolver_fn:
+                    # Return a mock address resolver
+                    address_resolver_mock = Mock()
+                    address_resolver_mock.resolve_address = lambda addr: addr
+                    mock_resolver_fn.return_value = address_resolver_mock
 
-                        # Mock get_contracts_by_chain_id to return a contracts dictionary with LICENSE_TEMPLATE
-                        with patch("services.story_service.get_contracts_by_chain_id") as mock_contracts_fn:
-                            mock_contracts_fn.return_value = {
-                                "PILicenseTemplate": "0x2E896b0b2Fdb7457499B56AAaA4AE55BCB4Cd316",
-                                "SPG_NFT": SAMPLE_NFT_CONTRACT,
-                                "RoyaltyPolicyLAP": "0xBe54FB168b3c982b7AaE60dB6CF75Bd8447b390E",
-                                "DisputeModule": "0x9b7A9c70AFF961C799110954fc06F3093aeb94C5"
-                            }
+                    # Mock get_contracts_by_chain_id to return a contracts dictionary with LICENSE_TEMPLATE
+                    with patch("services.story_service.get_contracts_by_chain_id") as mock_contracts_fn:
+                        mock_contracts_fn.return_value = {
+                            "PILicenseTemplate": "0x2E896b0b2Fdb7457499B56AAaA4AE55BCB4Cd316",
+                            "SPG_NFT": SAMPLE_NFT_CONTRACT,
+                            "RoyaltyPolicyLAP": "0xBe54FB168b3c982b7AaE60dB6CF75Bd8447b390E",
+                            "DisputeModule": "0x9b7A9c70AFF961C799110954fc06F3093aeb94C5"
+                        }
 
-                            # We need to skip the web3 validation and fix the to_checksum_address functionality
-                            mock_web3.is_connected.return_value = True
-                            # Use the real Web3.to_checksum_address to avoid validation errors
-                            mock_web3.to_checksum_address = Web3.to_checksum_address
+                        # We need to skip the web3 validation and fix the to_checksum_address functionality
+                        mock_web3.is_connected.return_value = True
+                        # Use the real Web3.to_checksum_address to avoid validation errors
+                        mock_web3.to_checksum_address = Web3.to_checksum_address
 
-                            # Get the RPC URL from environment or use fallback
-                            rpc_url = os.environ.get(
-                                "RPC_PROVIDER_URL", "https://aeneid.storyrpc.io")
+                        # Get the RPC URL from environment or use fallback
+                        rpc_url = os.environ.get(
+                            "RPC_PROVIDER_URL", "https://aeneid.storyrpc.io")
 
-                            service = StoryService(
-                                rpc_url=rpc_url,
-                                private_key=os.environ.get(
-                                    "WALLET_PRIVATE_KEY"),
-                                network="aeneid"  # Explicitly set network to avoid chain_id detection
-                            )
+                        service = StoryService(
+                            rpc_url=rpc_url,
+                            private_key=os.environ.get(
+                                "WALLET_PRIVATE_KEY"),
+                            network="aeneid"  # Explicitly set network to avoid chain_id detection
+                        )
 
-                            return service
+                        return service
 
     def test_init(self, mock_env):
         """Test StoryService initialization"""

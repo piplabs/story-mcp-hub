@@ -1,0 +1,10 @@
+[run]
+omit =
+    # omit __init__.py
+    */*/*/__init__.py
+    # omit generate abi
+    src/story_protocol_python_sdk/abi/*
+    # omit tests
+    tests/*
+branch = true
+

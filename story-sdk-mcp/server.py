@@ -101,9 +101,13 @@ def mint_license_tokens(
     max_minting_fee: Optional[int] = None,
     max_revenue_share: Optional[int] = None,
     license_template: Optional[str] = None,
+    approve_amount: Optional[int] = None,
 ) -> str:
     """
     Mint license tokens for a given IP and license terms.
+
+    💰 AUTO-APPROVE: This method automatically approves the required WIP token spending before minting.
+    The approve_amount parameter controls how much WIP to approve for the spender.
 
     Args:
         licensor_ip_id: The ID of the licensor's intellectual property
@@ -113,6 +117,7 @@ def mint_license_tokens(
         max_minting_fee: Optional; maximum fee for minting
         max_revenue_share: Optional; maximum revenue share percentage
         license_template: Optional; address of the license template
+        approve_amount: Optional; amount to approve for spending WIP tokens (Default is exact amount needed for the transaction). 
 
     Returns:
         str: Success message with transaction hash and token IDs
@@ -126,12 +131,13 @@ def mint_license_tokens(
             max_minting_fee=max_minting_fee,
             max_revenue_share=max_revenue_share,
             license_template=license_template,
+            approve_amount=approve_amount,
         )
 
         return (
             f"Successfully minted license tokens:\n"
-            f"Transaction Hash: {response['txHash']}\n"
-            f"License Token IDs: {response['licenseTokenIds']}"
+            f"Transaction Hash: {response['tx_hash']}\n"
+            f"License Token IDs: {response['license_token_ids']}"
         )
     except ValueError as e:
         return f"Validation error: {str(e)}"
@@ -139,20 +145,20 @@ def mint_license_tokens(
         return f"Error minting license tokens: {str(e)}"
 
 
-@mcp.tool()
-def send_ip(to_address: str, amount: float) -> str:
-    """
-    Send IP tokens to another address.
+# @mcp.tool()
+# def send_ip(to_address: str, amount: float) -> str:
+#     """
+#     Send IP tokens to another address.
 
-    :param to_address: The recipient's wallet address
-    :param amount: Amount of IP tokens to send (1 IP = 1 Ether)
-    :return: Transaction result message
-    """
-    try:
-        response = story_service.send_ip(to_address, amount)
-        return f"Successfully sent {amount} IP to {to_address}. Transaction hash: {response['txHash']}"
-    except Exception as e:
-        return f"Error sending IP: {str(e)}"
+#     :param to_address: The recipient's wallet address
+#     :param amount: Amount of IP tokens to send (1 IP = 1 Ether)
+#     :return: Transaction result message
+#     """
+#     try:
+#         response = story_service.send_ip(to_address, amount)
+#         return f"Successfully sent {amount} IP to {to_address}. Transaction hash: {response['txHash']}"
+#     except Exception as e:
+#         return f"Error sending IP: {str(e)}"
 
 
 @mcp.tool()
@@ -165,10 +171,14 @@ def mint_and_register_ip_with_terms(
     recipient: Optional[str] = None,
     spg_nft_contract: Optional[str] = None,  # Make this optional
     spg_nft_contract_max_minting_fee: Optional[int] = None,
+    approve_amount: Optional[int] = None,
 ) -> str:
     """
     Mint an NFT, register it as an IP Asset, and attach PIL terms.
     Automatically detects if the SPG contract requires a minting fee and handles it appropriately.
+
+    💰 AUTO-APPROVE: This method automatically approves the required WIP token spending before minting.
+    The approve_amount parameter controls how much WIP to approve for the spender.
 
     Args:
         commercial_rev_share: Percentage of revenue share (0-100)
@@ -181,25 +191,12 @@ def mint_and_register_ip_with_terms(
         spg_nft_contract_max_minting_fee: Optional maximum minting fee user is willing to pay for SPG contract (in wei).
                                         If None, will accept whatever the contract requires.
                                         If specified, will reject if contract requires more than this amount.
+        approve_amount: Optional; amount to approve for spending WIP tokens (Default is exact amount needed for the transaction). 
 
     Returns:
         str: Result message with transaction details
     """
     try:
-        # Validate inputs
-        if not (0 <= commercial_rev_share <= 100):
-            raise ValueError("commercial_rev_share must be between 0 and 100")
-        
-        if not commercial_use and commercial_rev_share > 0:
-            raise ValueError("commercial_rev_share must be 0 for non-commercial use")
-        
-        if minting_fee < 0:
-            raise ValueError("minting_fee must be non-negative")
-
-        if spg_nft_contract_max_minting_fee is not None and spg_nft_contract_max_minting_fee < 0:
-            raise ValueError("spg_nft_contract_max_minting_fee must be non-negative")
-
-        # No need to use SPG_NFT_CONTRACT from env, as StoryService now has defaults
         response = story_service.mint_and_register_ip_with_terms(
             commercial_rev_share=commercial_rev_share,
             derivatives_allowed=derivatives_allowed,
@@ -209,6 +206,7 @@ def mint_and_register_ip_with_terms(
             recipient=recipient,
             spg_nft_contract=spg_nft_contract,
             spg_nft_contract_max_minting_fee=spg_nft_contract_max_minting_fee,
+            approve_amount=approve_amount,
         )
 
         # Determine which explorer URL to use based on network
@@ -221,43 +219,22 @@ def mint_and_register_ip_with_terms(
         # Format fee information for display
         fee_info = ""
         if response.get('actualMintingFee') is not None:
-            actual_fee = response['actualMintingFee']
-            max_fee = response.get('maxMintingFee')
-            
+            actual_fee = response['actual_minting_fee']
             if actual_fee == 0:
-                fee_info = f"Minting Fee: FREE (0 wei)\n"
+                fee_info = f"SPG NFT Mint Fee: FREE (0 wei)\n"
             else:
                 fee_in_ether = story_service.web3.from_wei(actual_fee, 'ether')
-                fee_info = f"Minting Fee: {actual_fee} wei ({fee_in_ether} IP)\n"
-                
-                if max_fee is not None:
-                    max_in_ether = story_service.web3.from_wei(max_fee, 'ether')
-                    fee_info += f"Your Maximum: {max_fee} wei ({max_in_ether} IP)\n"
+                fee_info = f"SPG NFT Mint Fee: {actual_fee} wei ({fee_in_ether} IP)\n"
 
-        # Check if this was a multi-step process
-        if response.get("_multi_step"):
-            return (
-                f"Successfully minted and registered IP asset with terms (multi-step process for paid contract):\n"
-                f"Step 1 - Mint NFT: {response['_mint_txHash']}\n"
-                f"Step 2 - Register IP: {response['_register_txHash']}\n"
-                f"Step 3 - Attach Terms: {response['_attach_txHash']}\n\n"
-                f"Final Results:\n"
-                f"IP ID: {response['ipId']}\n"
-                f"Token ID: {response['tokenId']}\n"
-                f"License Terms IDs: {response['licenseTermsIds']}\n"
-                f"{fee_info}"
-                f"View the IPA here: {explorer_url}/ipa/{response['ipId']}"
-            )
-        else:
-            return (
-                f"Successfully minted and registered IP asset with terms:\n"
-                f"Transaction Hash: {response['txHash']}\n"
-                f"IP ID: {response['ipId']}\n"
-                f"Token ID: {response['tokenId']}\n"
-                f"License Terms IDs: {response['licenseTermsIds']}\n"
-                f"{fee_info}"
-                f"View the IPA here: {explorer_url}/ipa/{response['ipId']}"
-            )
+        return (
+            f"Successfully minted and registered IP asset with terms:\n"
+            f"Transaction Hash: {response.get('tx_hash')}\n"
+            f"IP ID: {response['ip_id']}\n"
+            f"Token ID: {response['token_id']}\n"
+            f"License Terms IDs: {response['license_terms_ids']}\n"
+            f"{fee_info}"
+            f"View the IPA here: {explorer_url}/ipa/{response['ip_id']}"
+        )
     except Exception as e:
         return f"Error minting and registering IP with terms: {str(e)}"
 
@@ -342,9 +319,9 @@ def get_spg_nft_contract_minting_fee(spg_nft_contract: str) -> str:
     try:
         fee_info = story_service.get_spg_nft_contract_minting_fee(spg_nft_contract)
         
-        fee_amount = fee_info['mintFee']
-        fee_token = fee_info['mintFeeToken']
-        is_native = fee_info['isNativeToken']
+        fee_amount = fee_info['mint_fee']
+        fee_token = fee_info['mint_fee_token']
+        is_native = fee_info['is_native_token']
         
         # Format the fee amount nicely
         if fee_amount == 0:
@@ -367,57 +344,57 @@ def get_spg_nft_contract_minting_fee(spg_nft_contract: str) -> str:
         return f"Error getting SPG minting fee: {str(e)}"
 
 
-@mcp.tool()
-def mint_nft(
-    nft_contract: str,
-    to_address: str,
-    metadata_uri: str,
-    metadata_hash: str,
-    allow_duplicates: bool = False,
-) -> str:
-    """
-    Mint an NFT from an existing SPG collection using the Story Protocol SDK.
+# @mcp.tool()
+# def mint_nft(
+#     nft_contract: str,
+#     to_address: str,
+#     metadata_uri: str,
+#     metadata_hash: str,
+#     allow_duplicates: bool = False,
+# ) -> str:
+#     """
+#     Mint an NFT from an existing SPG collection using the Story Protocol SDK.
     
-    Uses the IPAsset.mint() method from the Story Protocol Python SDK to mint NFTs from SPG contracts.
+#     Uses the IPAsset.mint() method from the Story Protocol Python SDK to mint NFTs from SPG contracts.
 
-    Args:
-        nft_contract: The address of the SPG NFT contract to mint from
-        to_address: The recipient address for the minted NFT
-        metadata_uri: The metadata URI for the NFT
-        metadata_hash: The metadata hash as a hex string (will be converted to bytes)
-        allow_duplicates: Whether to allow minting NFTs with duplicate metadata (default: False)
+#     Args:
+#         nft_contract: The address of the SPG NFT contract to mint from
+#         to_address: The recipient address for the minted NFT
+#         metadata_uri: The metadata URI for the NFT
+#         metadata_hash: The metadata hash as a hex string (will be converted to bytes)
+#         allow_duplicates: Whether to allow minting NFTs with duplicate metadata (default: False)
 
-    Returns:
-        str: Result message with transaction details
-    """
-    try:
-        # Convert hex string to bytes for metadata_hash
-        if metadata_hash.startswith('0x'):
-            metadata_hash_bytes = bytes.fromhex(metadata_hash[2:])
-        else:
-            metadata_hash_bytes = bytes.fromhex(metadata_hash)
+#     Returns:
+#         str: Result message with transaction details
+#     """
+#     try:
+#         # Convert hex string to bytes for metadata_hash
+#         if metadata_hash.startswith('0x'):
+#             metadata_hash_bytes = bytes.fromhex(metadata_hash[2:])
+#         else:
+#             metadata_hash_bytes = bytes.fromhex(metadata_hash)
         
-        result = story_service.mint_nft(
-            nft_contract=nft_contract,
-            to_address=to_address,
-            metadata_uri=metadata_uri,
-            metadata_hash=metadata_hash_bytes,
-            allow_duplicates=allow_duplicates
-        )
+#         result = story_service.mint_nft(
+#             nft_contract=nft_contract,
+#             to_address=to_address,
+#             metadata_uri=metadata_uri,
+#             metadata_hash=metadata_hash_bytes,
+#             allow_duplicates=allow_duplicates
+#         )
         
-        return (
-            f"Successfully minted NFT:\n"
-            f"Transaction Hash: {result['txHash']}\n"
-            f"NFT Contract: {result['nftContract']}\n"
-            f"Token ID: {result['tokenId']}\n"
-            f"Recipient: {result['recipient']}\n"
-            f"Metadata URI: {result['metadataUri']}\n"
-            f"Allow Duplicates: {allow_duplicates}\n"
-            f"Gas Used: {result['gasUsed']}\n\n"
-            f"You can now use this NFT with the register function to create an IP without license terms."
-        )
-    except Exception as e:
-        return f"Error minting NFT: {str(e)}"
+#         return (
+#             f"Successfully minted NFT:\n"
+#             f"Transaction Hash: {result['txHash']}\n"
+#             f"NFT Contract: {result['nftContract']}\n"
+#             f"Token ID: {result['tokenId']}\n"
+#             f"Recipient: {result['recipient']}\n"
+#             f"Metadata URI: {result['metadataUri']}\n"
+#             f"Allow Duplicates: {allow_duplicates}\n"
+#             f"Gas Used: {result['gasUsed']}\n\n"
+#             f"You can now use this NFT with the register function to create an IP without license terms."
+#         )
+#     except Exception as e:
+#         return f"Error minting NFT: {str(e)}"
 
 
 @mcp.tool()
@@ -425,10 +402,15 @@ def mint_and_register_ip_asset(
     spg_nft_contract: str,
     recipient: Optional[str] = None,
     ip_metadata: Optional[dict] = None,
-    max_minting_fee: Optional[int] = None,
+    allow_duplicates: bool = True,
+    spg_nft_contract_max_minting_fee: Optional[int] = None,
+    approve_amount: Optional[int] = None
 ) -> str:
     """
     Mint an NFT and register it as an IP asset in one transaction (without license terms).
+
+    💰 AUTO-APPROVE: This method automatically approves the required WIP token spending before minting.
+    The approve_amount parameter controls how much WIP to approve for the spender.
 
     Args:
         spg_nft_contract: The address of the SPG NFT contract to mint from
@@ -438,57 +420,51 @@ def mint_and_register_ip_asset(
             ip_metadata_hash: Optional metadata hash for the IP
             nft_metadata_uri: Optional metadata URI for the NFT
             nft_metadata_hash: Optional metadata hash for the NFT
-        max_minting_fee: Optional maximum minting fee user is willing to pay (in wei).
+        spg_nft_contract_max_minting_fee: Optional maximum minting fee user is willing to pay (in wei).
                         If not specified, will accept whatever the contract requires.
                         If specified, will reject if contract requires more than this amount.
+        approve_amount: Optional; amount to approve for spending WIP tokens (Default is exact amount needed for the transaction). 
 
     Returns:
         str: Result message with transaction details
     """
     try:
-        result = story_service.mint_and_register_ip_asset(
+        response = story_service.mint_and_register_ip_asset(
             spg_nft_contract=spg_nft_contract,
             recipient=recipient,
             ip_metadata=ip_metadata,
-            max_minting_fee=max_minting_fee
+            allow_duplicates=allow_duplicates,
+            spg_nft_contract_max_minting_fee=spg_nft_contract_max_minting_fee,
+            approve_amount=approve_amount,
         )
-        
+
         # Determine which explorer URL to use based on network
         explorer_url = (
             "https://explorer.story.foundation"
             if story_service.network == "mainnet"
             else "https://aeneid.explorer.story.foundation"
         )
-        
+
         # Format fee information for display
         fee_info = ""
-        if result.get('actualMintingFee') is not None:
-            actual_fee = result['actualMintingFee']
-            max_fee = result.get('maxMintingFee')
-            
+        if response.get('actual_minting_fee') is not None:
+            actual_fee = response['actual_minting_fee']
             if actual_fee == 0:
-                fee_info = f"Minting Fee: FREE (0 wei)\n"
+                fee_info = f"SPG NFT Mint Fee: FREE (0 wei)\n"
             else:
                 fee_in_ether = story_service.web3.from_wei(actual_fee, 'ether')
-                fee_info = f"Minting Fee: {actual_fee} wei ({fee_in_ether} IP)\n"
-                
-                if max_fee is not None:
-                    max_in_ether = story_service.web3.from_wei(max_fee, 'ether')
-                    fee_info += f"Your Maximum: {max_fee} wei ({max_in_ether} IP)\n"
-        
+                fee_info = f"SPG NFT Mint Fee: {actual_fee} wei ({fee_in_ether} IP)\n"
+
         return (
-            f"Successfully minted NFT and registered as IP asset:\n"
-            f"Transaction Hash: {result['txHash']}\n"
-            f"IP ID: {result['ipId']}\n"
-            f"NFT Contract: {result['nftContract']}\n"
-            f"Token ID: {result['tokenId']}\n"
-            f"Recipient: {recipient if recipient else 'sender'}\n"
+            f"Successfully minted and registered IP asset with terms:\n"
+            f"Transaction Hash: {response.get('tx_hash')}\n"
+            f"IP ID: {response['ip_id']}\n"
+            f"Token ID: {response['token_id']}\n"
             f"{fee_info}"
-            f"View the IPA here: {explorer_url}/ipa/{result['ipId']}\n\n"
-            f"This IP has no license terms attached - perfect for derivative registration!"
+            f"View the IPA here: {explorer_url}/ipa/{response['ip_id']}"
         )
     except Exception as e:
-        return f"Error minting and registering IP asset: {str(e)}"
+        return f"Error minting and registering IP with terms: {str(e)}"
 
 
 @mcp.tool()
@@ -519,10 +495,10 @@ def register(
             ip_metadata=ip_metadata
         )
         
-        if result.get('txHash'):
-            return f"Successfully registered NFT as IP. Transaction hash: {result['txHash']}, IP ID: {result['ipId']}"
+        if result.get('tx_hash'):
+            return f"Successfully registered NFT as IP. Transaction hash: {result['tx_hash']}, IP ID: {result['ip_id']}"
         else:
-            return f"NFT already registered as IP. IP ID: {result['ipId']}"
+            return f"NFT already registered as IP. IP ID: {result['ip_id']}"
     except Exception as e:
         return f"Error registering NFT as IP: {str(e)}"
 
@@ -547,7 +523,7 @@ def attach_license_terms(ip_id: str, license_terms_id: int, license_template: Op
             license_template=license_template
         )
         
-        return f"Successfully attached license terms to IP. Transaction hash: {result['txHash']}"
+        return f"Successfully attached license terms to IP. Transaction hash: {result['tx_hash']}"
     except Exception as e:
         return f"Error attaching license terms: {str(e)}"
 
@@ -560,7 +536,8 @@ def register_derivative(
     max_minting_fee: int = 0,
     max_rts: int = 0,
     max_revenue_share: int = 0,
-    license_template: Optional[str] = None
+    license_template: Optional[str] = None,
+    approve_amount: Optional[int] = None
 ) -> str:
     """
     Registers a derivative directly with parent IP's license terms, without needing license tokens.
@@ -573,15 +550,11 @@ def register_derivative(
         max_rts: The maximum number of royalty tokens that can be distributed (max: 100,000,000)
         max_revenue_share: The maximum revenue share percentage allowed (0-100,000,000)
         license_template: Optional address of the license template (defaults to the default template)
-
+        approve_amount: Optional; amount to approve for spending WIP tokens (Default is exact amount needed for the transaction). 
     Returns:
         str: Result message with transaction hash
     """
     try:
-        # Validate inputs
-        if len(parent_ip_ids) != len(license_terms_ids):
-            return "Error: The number of parent IP IDs must match the number of license terms IDs."
-            
         result = story_service.register_derivative(
             child_ip_id=child_ip_id,
             parent_ip_ids=parent_ip_ids,
@@ -589,10 +562,11 @@ def register_derivative(
             max_minting_fee=max_minting_fee,
             max_rts=max_rts,
             max_revenue_share=max_revenue_share,
-            license_template=license_template
+            license_template=license_template,
+            approve_amount=approve_amount
         )
         
-        return f"Successfully registered derivative. Transaction hash: {result['txHash']}"
+        return f"Successfully registered derivative. Transaction hash: {result['tx_hash']}"
     except Exception as e:
         return f"Error registering derivative: {str(e)}"
 
@@ -602,16 +576,21 @@ def pay_royalty_on_behalf(
     receiver_ip_id: str,
     payer_ip_id: str,
     token: str,
-    amount: int
+    amount: int,
+    approve_amount: Optional[int] = None
 ) -> str:
     """
     Allows the function caller to pay royalties to the receiver IP asset on behalf of the payer IP asset.
+
+    💰 AUTO-APPROVE: This method automatically approves the required WIP token spending before paying royalties.
+    The approve_amount parameter controls how much WIP to approve for the spender.
 
     Args:
         receiver_ip_id: The IP ID that receives the royalties
         payer_ip_id: The ID of the IP asset that pays the royalties
         token: The token address to use to pay the royalties
         amount: The amount to pay
+        approve_amount: Optional; amount to approve for spending WIP tokens (Default is exact amount needed for the transaction). 
 
     Returns:
         str: Success message with transaction hash
@@ -621,10 +600,11 @@ def pay_royalty_on_behalf(
             receiver_ip_id=receiver_ip_id,
             payer_ip_id=payer_ip_id,
             token=token,
-            amount=amount
+            amount=amount,
+            approve_amount=approve_amount
         )
 
-        return f"Successfully paid royalty on behalf. Transaction hash: {response['txHash']}"
+        return f"Successfully paid royalty on behalf. Transaction hash: {response['tx_hash']}"
     except Exception as e:
         return f"Error paying royalty on behalf: {str(e)}"
 
@@ -700,73 +680,6 @@ def estimate_gas_for_approval(
         return f"Error estimating gas: {str(e)}"
 
 
-@mcp.tool()
-def approve_token_for_royalty(
-    token: str,
-    amount: int,
-    operation_type: str = "royalty",
-    spender: Optional[str] = None,
-    gas_limit: Optional[int] = None,
-    gas_price: Optional[int] = None
-) -> str:
-    """
-    ✅ Approve a token contract to allow Story Protocol contracts to spend tokens.
-    This must be called before operations that transfer tokens to avoid InsufficientAllowance errors.
-
-    Args:
-        token: The token contract address to approve
-        amount: The amount to approve (use a large number like 1000000000000000000000000 for unlimited approval)
-        operation_type: Type of operation - determines which contract to approve:
-            - "royalty": For pay_royalty_on_behalf (uses RoyaltyModule)
-            - "licensing": For mint_license_tokens (uses LicensingModule) 
-            - "minting": For SPG NFT minting fees (uses SPG_NFT contract)
-            - "custom": Must provide spender address manually
-        spender: Optional manual spender address (only needed for custom operations or advanced use cases)
-        gas_limit: Optional custom gas limit (for advanced users only)
-        gas_price: Optional custom gas price in wei (for advanced users only)
-
-    Returns:
-        str: Success message with transaction and gas details
-        
-    Examples:
-        - ✅ Recommended: approve_token_for_royalty(token, amount, "royalty")
-        - ⚙️  Advanced: approve_token_for_royalty(token, amount, "royalty", gas_limit=80000, gas_price=50000000000)
-        - 🔧 Custom: approve_token_for_royalty(token, amount, "custom", "0xCustomContract...")
-        
-    💡 This function uses smart gas defaults. Only use estimate_gas_for_approval if you need to check costs first.
-    """
-    try:
-        response = story_service.approve_token_for_royalty(
-            token=token,
-            amount=amount,
-            spender=spender,
-            operation_type=operation_type,
-            gas_limit=gas_limit,
-            gas_price=gas_price
-        )
-
-        # Format gas information
-        gas_info = (
-            f"\n⛽ Gas Information:\n"
-            f"Gas Used: {response['gasUsed']:,} / {response['gasLimit']:,}\n"
-            f"Gas Price: {response['gasPriceGwei']:.2f} gwei\n"
-            f"Total Cost: {response['actualCostGwei']:.4f} gwei ({response['actualCostIP']:.6f} IP)"
-        )
-
-        return (
-            f"✅ Successfully approved token for {operation_type} operations!\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Transaction Hash: {response['txHash']}\n"
-            f"Status: {'Success' if response['status'] == 1 else 'Failed'}\n"
-            f"Approved Amount: {response['approvedAmount']}\n"
-            f"Token: {response['token']}\n"
-            f"Spender Contract: {response['spender']}\n"
-            f"Operation Type: {response['operationType']}"
-            + gas_info
-        )
-    except Exception as e:
-        return f"Error approving token: {str(e)}"
-
 
 @mcp.tool()
 def check_token_allowance(
@@ -795,7 +708,7 @@ def check_token_allowance(
         return (
             f"Token Allowance Information:\n"
             f"Current Allowance: {response['allowance']}\n"
-            f"Has Allowance: {'Yes' if response['hasAllowance'] else 'No'}\n"
+            f"Has Allowance: {'Yes' if response['has_allowance'] else 'No'}\n"
             f"Owner: {response['owner']}\n"
             f"Spender: {response['spender']}\n"
             f"Token: {response['token']}"
@@ -825,7 +738,7 @@ def get_token_info(token: str) -> str:
             f"Name: {response['name']}\n"
             f"Symbol: {response['symbol']}\n"
             f"Decimals: {response['decimals']}\n"
-            f"Total Supply: {response['totalSupply']:,} ({response['totalSupplyFormatted']:,.6f} {response['symbol']})"
+            f"Total Supply: {response['total_supply']:,} ({response['total_supply_ormatted']:,.6f} {response['symbol']})"
         )
     except Exception as e:
         return f"Error getting token info: {str(e)}"
@@ -857,8 +770,8 @@ def get_token_balance(
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"Address: {response['address']}\n"
             f"Token: {response['token']}\n"
-            f"Balance: {response['balanceFormatted']:,.6f} tokens\n"
-            f"Raw Balance: {response['balanceRaw']:,}\n"
+            f"Balance: {response['balance_formatted']:,.6f} tokens\n"
+            f"Raw Balance: {response['balance_raw']:,}\n"
             f"Decimals: {response['decimals']}"
         )
     except Exception as e:
@@ -875,69 +788,46 @@ def get_erc20_abi_info() -> str:
         str: Information about the ERC20 ABI and available functions
     """
     try:
-        # Import the ERC20 ABI modules
-        from services.erc20_abi import ERC20_ABI, ERC20_EXTENDED_ABI, ERC20_FUNCTIONS, get_erc20_abi
-        
-        # Get function counts
-        standard_functions = [item for item in ERC20_ABI if item['type'] == 'function']
-        standard_events = [item for item in ERC20_ABI if item['type'] == 'event']
-        extended_functions = [item for item in ERC20_EXTENDED_ABI if item['type'] == 'function']
-        extended_events = [item for item in ERC20_EXTENDED_ABI if item['type'] == 'event']
-        
-        # Get function names
-        standard_function_names = [func['name'] for func in standard_functions]
-        extended_function_names = [func['name'] for func in extended_functions]
-        
-        return (
-            f"📋 ERC20 ABI Information:\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🔧 Implementation: Imported from dedicated erc20_abi.py module\n"
-            f"✅ Benefits: No hardcoding, easy maintenance, standardized\n\n"
-            f"📊 Standard ERC20 ABI:\n"
-            f"Functions: {len(standard_functions)}\n"
-            f"Events: {len(standard_events)}\n"
-            f"Available Functions: {', '.join(standard_function_names)}\n\n"
-            f"📊 Extended ERC20 ABI (with EIP-2612 permit):\n"
-            f"Functions: {len(extended_functions)}\n"
-            f"Events: {len(extended_events)}\n"
-            f"Additional Functions: {', '.join(set(extended_function_names) - set(standard_function_names))}\n\n"
-            f"🗺️ Function Mapping Available:\n"
-            f"Mapped Functions: {len(ERC20_FUNCTIONS)}\n"
-            f"Example: ERC20_FUNCTIONS['balance_of'] = '{ERC20_FUNCTIONS['balance_of']}'\n\n"
-            f"💡 Usage: All token operations use the imported ABI automatically\n"
-            f"🔄 Maintenance: Update once in erc20_abi.py, changes apply everywhere"
-        )
+        return story_service.get_erc20_abi_info()
     except Exception as e:
         return f"Error getting ERC20 ABI info: {str(e)}"
 
 
+
+
 @mcp.tool()
-def claim_revenue(
-    snapshot_ids: list,
-    child_ip_id: str,
-    token: str
-) -> str:
+def claim_all_revenue(
+    ancestor_ip_id: str,
+    claimer: str,
+    child_ip_ids: list,
+    royalty_policies: list,
+    currency_tokens: list,
+    auto_transfer: bool = True
+) -> dict:
     """
-    Allows token holders to claim revenue by a list of snapshot IDs based on the token balance at certain snapshot.
-
+    Claim all revenue for a given ancestor IP and claimer.
     Args:
-        snapshot_ids: The list of snapshot IDs
-        child_ip_id: The child IP ID
-        token: The token address to claim
-
+        ancestor_ip_id: The ancestor IP ID
+        claimer: The claimer address
+        child_ip_ids: The list of child IP IDs
+        royalty_policies: The list of royalty policy addresses
+        currency_tokens: The list of currency tokens
+        auto_transfer: Whether to automatically transfer the claimed tokens to the claimer
     Returns:
-        str: Result message with transaction hash and claimed amount
+        dict: Transaction details and claimed tokens
     """
     try:
-        result = story_service.claim_revenue(
-            snapshot_ids=snapshot_ids,
-            child_ip_id=child_ip_id,
-            token=token
+        response = story_service.claim_all_revenue(
+            ancestor_ip_id=ancestor_ip_id,
+            claimer=claimer,
+            child_ip_ids=child_ip_ids,
+            royalty_policies=royalty_policies,
+            currency_tokens=currency_tokens,
+            auto_transfer=auto_transfer
         )
-        
-        return f"Successfully claimed revenue. Transaction hash: {result['txHash']}, Claimed amount: {result.get('claimableToken', 'Unknown')}"
+        return response
     except Exception as e:
-        return f"Error claiming revenue: {str(e)}"
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -946,13 +836,14 @@ def raise_dispute(
     target_tag: str,
     cid: str,
     bond_amount: int,
-    liveness: int = 30
+    liveness: int = 30,
+    approve_amount: Optional[int] = None
 ) -> str:
     """
     ⚖️ Raises a dispute against an IP asset using the Story Protocol SDK.
     
-    💰 BOND PAYMENT: The bond amount is automatically sent as native IP tokens with the transaction.
-    No separate token approval needed - the SDK handles everything!
+    💰 AUTO-APPROVE: This method automatically approves the required WIP token spending before raising the dispute.
+    The approve_amount parameter controls how much WIP to approve for the spender.
 
     Args:
         target_ip_id: The IP ID to dispute (must be a valid hex address starting with 0x)
@@ -960,16 +851,11 @@ def raise_dispute(
         cid: The Content Identifier (CID) for the dispute evidence, obtained from IPFS (e.g., "QmbWqxBEKC3P8tqsKc98xmWNzrzDtRLMiMPL8wBuTGsMnR")
         bond_amount: The amount of the bond to post for the dispute, as an integer in wei (e.g., 100000000000000000 for 0.1 IP)
         liveness: The liveness of the dispute in days, must be between 30 and 365 days (defaults to 30 days)
+        approve_amount: Optional; amount to approve for spending WIP tokens (Default is exact amount needed for the transaction). 
 
     Returns:
         str: Result message with transaction hash and dispute ID
         
-    💡 How Bond Payment Works:
-    - Bond is paid in native IP tokens (not ERC20)
-    - Amount is sent as transaction value (like sending ETH)
-    - SDK automatically handles the payment
-    - No need for separate approve/transfer steps
-    
     💡 Bond Amount Format:
     - Use wei (1 IP = 1,000,000,000,000,000,000 wei)
     - Example: 100000000000000000 wei = 0.1 IP
@@ -985,7 +871,8 @@ def raise_dispute(
             target_tag=target_tag,
             cid=cid,
             bond_amount=bond_amount,
-            liveness=liveness
+            liveness=liveness,
+            approve_amount=approve_amount
         )
         
         if 'error' in result:
@@ -998,6 +885,94 @@ def raise_dispute(
     except Exception as e:
         return f"Error raising dispute: {str(e)}"
 
+# @mcp.tool()
+# def pay_royalty_on_behalf_approve(amount: int) -> dict:
+#     """
+#     Approve a spender to use the wallet's WIP balance for royalty payments.
+
+#     :param amount int: The amount of WIP to approve for royalty.
+#     :return dict: A dictionary containing the transaction hash.
+#     """
+#     try:
+#         response = story_service.pay_royalty_on_behalf_approve(amount=amount)
+#         return {
+#             'tx_hash': response.get('tx_hash')
+#         }
+#     except Exception as e:
+#         return f"Error approving royalty: {str(e)}"
+
+# @mcp.tool()
+# def mint_and_register_ip_approve(amount: int) -> dict:
+#     """
+#     Approve a spender to use the wallet's WIP balance for minting and registering IP.
+
+#     :param amount int: The amount of WIP to approve for minting and registering IP.
+#     :return dict: A dictionary containing the transaction hash.
+#     """
+#     try:
+#         response = story_service.mint_and_register_ip_approve(amount=amount)
+#         return {
+#             'tx_hash': response.get('tx_hash')
+#         }
+#     except Exception as e:
+#         return f"Error approving mint and register IP: {str(e)}"
+
+# @mcp.tool()
+# def raise_dispute_bond_approve(amount: int) -> dict:
+#     """
+#     Approve a spender to use the wallet's WIP balance for raise dispute bond payments.
+#     :param amount int: The amount of WIP to approve for raise dispute bond.
+#     :return dict: A dictionary containing the transaction hash.
+#     """
+#     try:
+#         response = story_service.raise_dispute_bond_approve(amount=amount)
+#         return {
+#             'tx_hash': response.get('tx_hash')
+#         }
+#     except Exception as e:
+#         return f"Error approving raise dispute bond: {str(e)}"
+    
+# @mcp.tool()
+# def mint_license_tokens_approve(amount: int) -> dict:
+#     """
+#     Approve a spender to use the wallet's WIP balance for license token minting.
+#     :param amount int: The amount of WIP to approve for license token minting.
+#     :return dict: A dictionary containing the transaction hash.
+#     """
+#     try:
+#         response = story_service.mint_license_tokens_approve(amount=amount)
+#         return {
+#             'tx_hash': response.get('tx_hash')
+#         }
+#     except Exception as e:
+#         return f"Error approving mint license tokens: {str(e)}"
+
+@mcp.tool()
+def deposit_wip(amount: int) -> dict:
+    """
+    Wraps the selected amount of IP to WIP and deposits to the wallet.
+    :param amount int: The amount of IP to wrap.
+    :return dict: A dictionary containing the transaction hash.
+    """
+    try:
+        response = story_service.deposit_wip(amount=amount)
+        return {'tx_hash': response.get('tx_hash')}
+    except Exception as e:
+        return {'error': str(e)}
+
+@mcp.tool()
+def transfer_wip(to: str, amount: int) -> dict:
+    """
+    Transfers `amount` of WIP to a recipient `to`.
+    :param to str: The address of the recipient.
+    :param amount int: The amount of WIP to transfer.
+    :return dict: A dictionary containing the transaction hash.
+    """
+    try:
+        response = story_service.transfer_wip(to=to, amount=amount)
+        return {'tx_hash': response.get('tx_hash')}
+    except Exception as e:
+        return {'error': str(e)}
 
 
 # @mcp.tool()
@@ -1094,7 +1069,17 @@ def raise_dispute(
 #     except Exception as e:
 #         return f"Error registering non-commercial PIL: {str(e)}"
 
-
+# @mcp.tool()
+# def get_license_terms_test(selected_license_terms_id: int) -> dict:
+#     """
+#     Get license terms test.
+#     :param selected_license_terms_id int: The ID of the license terms.
+#     :return dict: A dictionary containing the license terms.
+#     """
+#     try:
+#         return story_service.get_license_terms_test(selected_license_terms_id)
+#     except Exception as e:
+#         return {'error': str(e)}
 
 
 if __name__ == "__main__":

@@ -1,0 +1,23 @@
+{
+    "contracts": [
+        {
+            "contract_name": "IpRoyaltyVaultImpl",
+            "contract_address": "0x1081250219B16cc3903Aa2d2d1403A75c6A2F9f5",
+            "functions": [
+                "claimableRevenue",
+                "snapshot",
+                "claimRevenueOnBehalfBySnapshotBatch",
+                "claimRevenueOnBehalfByTokenBatch"
+            ]
+        },
+        {
+            "contract_name": "IPAccountImpl",
+            "contract_address": "0x24F08796561d6E1AC08e82b68BF4d9500B374Af6",
+            "functions": [
+                "execute",
+                "executeWithSig",
+                "state"
+            ]
+        }
+    ]
+}

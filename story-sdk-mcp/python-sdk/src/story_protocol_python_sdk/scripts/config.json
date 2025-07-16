@@ -1,0 +1,258 @@
+{
+    "contracts": [
+        {
+            "contract_name": "AccessController",
+            "contract_address": "0xcCF37d0a503Ee1D4C11208672e622ed3DFB2275a",
+            "functions": [
+                "PermissionSet",
+                "setPermission", 
+                "setAllPermissions",
+                "setBatchPermissions",
+                "setTransientPermission",
+                "setTransientBatchPermissions"
+            ]
+        },
+        {
+            "contract_name": "DisputeModule",
+            "contract_address": "0x9b7A9c70AFF961C799110954fc06F3093aeb94C5",
+            "functions": [
+                "DisputeCancelled",
+                "DisputeRaised", 
+                "DisputeResolved",
+                "cancelDispute",
+                "raiseDispute",
+                "resolveDispute",
+                "isWhitelistedDisputeTag"
+            ]
+        },
+        {
+            "contract_name": "IPAccountImpl",
+            "contract_address": "0xc93d49fEdED1A2fbE3B54223Df65f4edB3845eb0",
+            "functions": [
+                "execute",
+                "executeBatch",
+                "executeWithSig",
+                "state",
+                "token",
+                "owner"
+            ]
+        },
+        {
+            "contract_name": "IPAssetRegistry",
+            "contract_address": "0x77319B4031e6eF1250907aa00018B8B1c67a244b",
+            "functions": [
+                "IPRegistered",
+                "ipId",
+                "isRegistered", 
+                "register",
+                "IPAccountRegistered"
+            ]
+        },
+        {
+            "contract_name": "IpRoyaltyVaultImpl",
+            "contract_address": "0x63cC7611316880213f3A4Ba9bD72b0EaA2010298",
+            "functions": [
+                "claimableRevenue",
+                "ipId",
+                "RoyaltyTokensCollected",
+                "RevenueTokenClaimed",
+                "balanceOf"
+            ]
+        },
+        {
+            "contract_name": "PILicenseTemplate",
+            "contract_address": "0x2E896b0b2Fdb7457499B56AAaA4AE55BCB4Cd316",
+            "functions": [
+                "getLicenseTermsId",
+                "registerLicenseTerms",
+                "LicenseTermsRegistered",
+                "getLicenseTerms",
+                "exists"
+            ]
+        },
+        {
+            "contract_name": "LicensingModule",
+            "contract_address": "0x04fbd8a2e56dd85CFD5500A4A4DfA955B9f1dE6f",
+            "functions": [
+                "attachLicenseTerms",
+                "mintLicenseTokens",
+                "LicenseTokensMinted",
+                "registerDerivativeWithLicenseTokens",
+                "registerDerivative",
+                "getLicenseTerms",
+                "LicenseTermsAttached",
+                "predictMintingLicenseFee",
+                "setLicensingConfig"
+            ]
+        },
+        {
+            "contract_name": "ModuleRegistry",
+            "contract_address": "0x022DBAAeA5D8fB31a0Ad793335e39Ced5D631fa5",
+            "functions": [
+                "isRegistered",
+                "getDefaultLicenseTerms"
+            ]
+        },
+        {
+            "contract_name": "RoyaltyModule",
+            "contract_address": "0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086",
+            "functions": [
+                "payRoyaltyOnBehalf",
+                "isWhitelistedRoyaltyPolicy",
+                "isWhitelistedRoyaltyToken",
+                "ipRoyaltyVaults",
+                "IpRoyaltyVaultDeployed"
+            ]
+        },
+        {
+            "contract_name": "RoyaltyPolicyLAP",
+            "contract_address": "0xBe54FB168b3c982b7AaE60dB6CF75Bd8447b390E",
+            "functions": [
+                "onRoyaltyPayment",
+                "getRoyaltyData",
+                "transferToVault"
+            ]
+        },
+        {
+            "contract_name": "LicenseToken",
+            "contract_address": "0xFe3838BFb30B34170F00030B52eA4893d8aAC6bC",
+            "functions": [
+                "ownerOf"
+            ]
+        },
+        {
+            "contract_name": "GroupingWorkflows",
+            "contract_address": "0xD7c0beb3aa4DCD4723465f1ecAd045676c24CDCd",
+            "functions": [
+                "mintAndRegisterIpAndAttachLicenseAndAddToGroup",
+                "registerIpAndAttachLicenseAndAddToGroup",
+                "registerGroupAndAttachLicense",
+                "registerGroupAndAttachLicenseAndAddIps",
+                "collectRoyaltiesAndClaimReward",
+                "CollectedRoyaltiesToGroupPool",
+                "RoyaltyPaid"
+            ]
+        },
+        {
+            "contract_name": "RegistrationWorkflows",
+            "contract_address": "0xbe39E1C756e921BD25DF86e7AAa31106d1eb0424",
+            "functions": [
+                "createCollection",
+                "mintAndRegisterIp",
+                "registerIp",
+                "CollectionCreated",
+                "multicall"
+            ]
+        },
+        {
+            "contract_name": "LicenseAttachmentWorkflows",
+            "contract_address": "0xcC2E862bCee5B6036Db0de6E06Ae87e524a79fd8",
+            "functions": [
+                "registerPILTermsAndAttach",
+                "registerIpAndAttachPILTerms",
+                "mintAndRegisterIpAndAttachPILTerms",
+                "multicall"
+            ]
+        },
+        {
+            "contract_name": "RoyaltyWorkflows",
+            "contract_address": "0x9515faE61E0c0447C6AC6dEe5628A2097aFE1890",
+            "functions": [
+                "transferToVaultAndSnapshotAndClaimByTokenBatch",
+                "transferToVaultAndSnapshotAndClaimBySnapshotBatch",
+                "snapshotAndClaimByTokenBatch",
+                "snapshotAndClaimBySnapshotBatch",
+                "claimAllRevenue"
+            ]
+        },
+        {
+            "contract_name": "RoyaltyTokenDistributionWorkflows",
+            "contract_address": "0xa38f42B8d33809917f23997B8423054aAB97322C",
+            "functions": [
+                "mintAndRegisterIpAndAttachPILTermsAndDistributeRoyaltyTokens",
+                "mintAndRegisterIpAndMakeDerivativeAndDistributeRoyaltyTokens",
+                "registerIpAndAttachPILTermsAndDeployRoyaltyVault",
+                "distributeRoyaltyTokens",
+                "registerIpAndMakeDerivativeAndDeployRoyaltyVault"
+            ]
+        },
+        {
+            "contract_name": "CoreMetadataModule",
+            "contract_address": "0x6E81a25C99C6e8430aeC7353325EB138aFE5DC16",
+            "functions": []
+        },
+        {
+            "contract_name": "CoreMetadataViewModule",
+            "contract_address": "0xB3F88038A983CeA5753E11D144228Ebb5eACdE20",
+            "functions": []
+        },
+        {
+            "contract_name": "GroupingModule",
+            "contract_address": "0x69D3a7aa9edb72Bc226E745A7cCdd50D947b69Ac",
+            "functions": [
+                "registerGroup",
+                "addIp",
+                "IPGroupRegistered"
+            ]
+        },
+        {
+            "contract_name": "LicenseRegistry",
+            "contract_address": "0x529a750E02d8E2f15649c13D69a465286a780e24",
+            "functions": [
+                "exists",
+                "hasIpAttachedLicenseTerms",
+                "getRoyaltyPercent"
+            ]
+        },
+        {
+            "contract_name": "RoyaltyPolicyLRP",
+            "contract_address": "0x9156e603C949481883B1d3355c6f1132D191fC41",
+            "functions": ["transferToVault"]
+        },
+        {
+            "contract_name": "ArbitrationPolicyUMA", 
+            "contract_address": "0xfFD98c3877B8789124f02C7E8239A4b0Ef11E936",
+            "functions": [
+                "minLiveness",
+                "maxLiveness",
+                "maxBonds",
+                "disputeIdToAssertionId",
+                "oov3"
+            ]
+        },
+        {
+            "contract_name": "MockERC20",
+            "contract_address": "0xF2104833d386a2734a4eB3B8ad6FC6812F29E38E",
+            "functions": [
+                "transfer",
+                "balanceOf"
+            ]
+        },
+        {
+            "contract_name": "WIP",
+            "contract_address": "0x1514000000000000000000000000000000000000",
+            "functions": [
+                "deposit",
+                "withdraw",
+                "approve",
+                "balanceOf",
+                "transfer",
+                "transferFrom",
+                "allowance"
+            ]
+        },
+        {
+            "contract_name": "SPGNFTImpl",
+            "contract_address": "0xc09e3788Fdfbd3dd8CDaa2aa481B52CcFAb74a42",
+            "functions": [
+                "mintFeeToken",
+                "mintFee"
+            ]
+        },
+        {
+            "contract_name": "DerivativeWorkflows",
+            "contract_address": "0x9e2d496f72C547C2C535B167e06ED8729B374a4f",
+            "functions": []
+        }
+    ]
+}
