@@ -32,6 +32,8 @@ class MockStoryService:
     def __init__(self):
         self.ipfs_enabled = True
         self.network = "testnet"
+        self.web3 = Mock()
+        self.web3.from_wei.return_value = 0.1  # For bond amount conversion
         # Add any other properties needed
 
 class TestServerFunctions:
@@ -196,7 +198,7 @@ class TestServerFunctions:
         self.story_service.get_license_terms.assert_called_once_with(42)
     
     def test_mint_license_tokens(self, setup_mocks):
-        """Test the mint_license_tokens function."""
+        """Test the mint_license_tokens function with approve_amount."""
         server_module, add_tool = setup_mocks
         
         # Create the tool function we want to test
@@ -207,7 +209,8 @@ class TestServerFunctions:
             amount=1, 
             max_minting_fee=None, 
             max_revenue_share=None, 
-            license_template=None
+            license_template=None,
+            approve_amount=None
         ):
             """Mint license tokens for a given IP and license terms."""
             try:
@@ -219,12 +222,13 @@ class TestServerFunctions:
                     max_minting_fee=max_minting_fee,
                     max_revenue_share=max_revenue_share,
                     license_template=license_template,
+                    approve_amount=approve_amount,
                 )
 
                 return (
                     f"Successfully minted license tokens:\n"
-                    f"Transaction Hash: {response['txHash']}\n"
-                    f"License Token IDs: {response['licenseTokenIds']}"
+                    f"Transaction Hash: {response['tx_hash']}\n"
+                    f"License Token IDs: {response['license_token_ids']}"
                 )
             except ValueError as e:
                 return f"Validation error: {str(e)}"
@@ -236,15 +240,16 @@ class TestServerFunctions:
         
         # Mock the service method
         self.story_service.mint_license_tokens = Mock(return_value={
-            "txHash": "0xabc123",
-            "licenseTokenIds": [1, 2, 3]
+            "tx_hash": "0xabc123",
+            "license_token_ids": [1, 2, 3]
         })
         
         # Call the function
         result = mint_license_tokens(
             licensor_ip_id="0x123",
             license_terms_id=42,
-            amount=3
+            amount=3,
+            approve_amount=10000
         )
         
         # Assertions
@@ -258,7 +263,8 @@ class TestServerFunctions:
             amount=3,
             max_minting_fee=None,
             max_revenue_share=None,
-            license_template=None
+            license_template=None,
+            approve_amount=10000
         )
     
     def test_mint_license_tokens_validation_error(self, setup_mocks):
@@ -273,7 +279,8 @@ class TestServerFunctions:
             amount=1, 
             max_minting_fee=None, 
             max_revenue_share=None, 
-            license_template=None
+            license_template=None,
+            approve_amount=None
         ):
             """Mint license tokens for a given IP and license terms."""
             try:
@@ -285,12 +292,13 @@ class TestServerFunctions:
                     max_minting_fee=max_minting_fee,
                     max_revenue_share=max_revenue_share,
                     license_template=license_template,
+                    approve_amount=approve_amount,
                 )
 
                 return (
                     f"Successfully minted license tokens:\n"
-                    f"Transaction Hash: {response['txHash']}\n"
-                    f"License Token IDs: {response['licenseTokenIds']}"
+                    f"Transaction Hash: {response['tx_hash']}\n"
+                    f"License Token IDs: {response['license_token_ids']}"
                 )
             except ValueError as e:
                 return f"Validation error: {str(e)}"
@@ -328,10 +336,10 @@ class TestServerFunctions:
                     ip_metadata=ip_metadata
                 )
                 
-                if result.get('txHash'):
-                    return f"Successfully registered NFT as IP. Transaction hash: {result['txHash']}, IP ID: {result['ipId']}"
+                if result.get('tx_hash'):
+                    return f"Successfully registered NFT as IP. Transaction hash: {result['tx_hash']}, IP ID: {result['ip_id']}"
                 else:
-                    return f"NFT already registered as IP. IP ID: {result['ipId']}"
+                    return f"NFT already registered as IP. IP ID: {result['ip_id']}"
             except Exception as e:
                 return f"Error registering NFT as IP: {str(e)}"
                 
@@ -340,8 +348,8 @@ class TestServerFunctions:
         
         # Mock the service method
         self.story_service.register = Mock(return_value={
-            "txHash": "0xabc123",
-            "ipId": "0xdef456"
+            "tx_hash": "0xabc123",
+            "ip_id": "0xdef456"
         })
         
         # Call the function
@@ -374,10 +382,10 @@ class TestServerFunctions:
                     ip_metadata=ip_metadata
                 )
                 
-                if result.get('txHash'):
-                    return f"Successfully registered NFT as IP. Transaction hash: {result['txHash']}, IP ID: {result['ipId']}"
+                if result.get('tx_hash'):
+                    return f"Successfully registered NFT as IP. Transaction hash: {result['tx_hash']}, IP ID: {result['ip_id']}"
                 else:
-                    return f"NFT already registered as IP. IP ID: {result['ipId']}"
+                    return f"NFT already registered as IP. IP ID: {result['ip_id']}"
             except Exception as e:
                 return f"Error registering NFT as IP: {str(e)}"
                 
@@ -386,7 +394,7 @@ class TestServerFunctions:
         
         # Mock the service method
         self.story_service.register = Mock(return_value={
-            "ipId": "0xdef456"  # No txHash indicates already registered
+            "ip_id": "0xdef456"  # No tx_hash indicates already registered
         })
         
         # Call the function
@@ -414,7 +422,7 @@ class TestServerFunctions:
                     license_template=license_template
                 )
                 
-                return f"Successfully attached license terms to IP. Transaction hash: {result['txHash']}"
+                return f"Successfully attached license terms to IP. Transaction hash: {result['tx_hash']}"
             except Exception as e:
                 return f"Error attaching license terms: {str(e)}"
                 
@@ -423,7 +431,7 @@ class TestServerFunctions:
         
         # Mock the service method
         self.story_service.attach_license_terms = Mock(return_value={
-            "txHash": "0xabc123"
+            "tx_hash": "0xabc123"
         })
         
         # Call the function
@@ -442,7 +450,7 @@ class TestServerFunctions:
         )
     
     def test_register_derivative(self, setup_mocks):
-        """Test the register_derivative function."""
+        """Test the register_derivative function with approve_amount."""
         server_module, add_tool = setup_mocks
         
         # Create the tool function we want to test
@@ -453,14 +461,11 @@ class TestServerFunctions:
             max_minting_fee=0,
             max_rts=0,
             max_revenue_share=0,
-            license_template=None
+            license_template=None,
+            approve_amount=None
         ):
             """Registers a derivative with parent IP's license terms."""
             try:
-                # Validate inputs
-                if len(parent_ip_ids) != len(license_terms_ids):
-                    return "Error: The number of parent IP IDs must match the number of license terms IDs."
-                    
                 result = self.story_service.register_derivative(
                     child_ip_id=child_ip_id,
                     parent_ip_ids=parent_ip_ids,
@@ -468,10 +473,11 @@ class TestServerFunctions:
                     max_minting_fee=max_minting_fee,
                     max_rts=max_rts,
                     max_revenue_share=max_revenue_share,
-                    license_template=license_template
+                    license_template=license_template,
+                    approve_amount=approve_amount
                 )
                 
-                return f"Successfully registered derivative. Transaction hash: {result['txHash']}"
+                return f"Successfully registered derivative. Transaction hash: {result['tx_hash']}"
             except Exception as e:
                 return f"Error registering derivative: {str(e)}"
                 
@@ -480,14 +486,15 @@ class TestServerFunctions:
         
         # Mock the service method
         self.story_service.register_derivative = Mock(return_value={
-            "txHash": "0xabc123"
+            "tx_hash": "0xabc123"
         })
         
         # Call the function
         result = register_derivative(
             child_ip_id="0x123",
             parent_ip_ids=["0x456", "0x789"],
-            license_terms_ids=[1, 2]
+            license_terms_ids=[1, 2],
+            approve_amount=10000
         )
         
         # Assertions
@@ -500,87 +507,36 @@ class TestServerFunctions:
             max_minting_fee=0,
             max_rts=0,
             max_revenue_share=0,
-            license_template=None
+            license_template=None,
+            approve_amount=10000
         )
-    
-    def test_register_derivative_validation_error(self, setup_mocks):
-        """Test the register_derivative function with validation error."""
-        server_module, add_tool = setup_mocks
-        
-        # Create the tool function we want to test
-        def register_derivative(
-            child_ip_id,
-            parent_ip_ids,
-            license_terms_ids,
-            max_minting_fee=0,
-            max_rts=0,
-            max_revenue_share=0,
-            license_template=None
-        ):
-            """Registers a derivative with parent IP's license terms."""
-            try:
-                # Validate inputs
-                if len(parent_ip_ids) != len(license_terms_ids):
-                    return "Error: The number of parent IP IDs must match the number of license terms IDs."
-                    
-                result = self.story_service.register_derivative(
-                    child_ip_id=child_ip_id,
-                    parent_ip_ids=parent_ip_ids,
-                    license_terms_ids=license_terms_ids,
-                    max_minting_fee=max_minting_fee,
-                    max_rts=max_rts,
-                    max_revenue_share=max_revenue_share,
-                    license_template=license_template
-                )
-                
-                return f"Successfully registered derivative. Transaction hash: {result['txHash']}"
-            except Exception as e:
-                return f"Error registering derivative: {str(e)}"
-                
-        # Register it with our mock MCP
-        register_derivative = add_tool('register_derivative', register_derivative)
-        
-        # Add the mock method to the service
-        self.story_service.register_derivative = Mock()
-        
-        # Call with mismatched lists
-        result = register_derivative(
-            child_ip_id="0x123",
-            parent_ip_ids=["0x456", "0x789"],
-            license_terms_ids=[1]  # Only one ID, should match parent_ip_ids length
-        )
-        
-        # Assertions
-        assert "Error" in result
-        assert "must match" in result
-        # Service should not be called due to input validation
-        self.story_service.register_derivative.assert_not_called()
     
     def test_pay_royalty_on_behalf(self, setup_mocks):
-        """Test the pay_royalty_on_behalf function."""
+        """Test the pay_royalty_on_behalf function with approve_amount."""
         server_module, add_tool = setup_mocks
         
         # Create the tool function we want to test
-        def pay_royalty_on_behalf(receiver_ip_id, payer_ip_id, token, amount):
+        def pay_royalty_on_behalf(receiver_ip_id, payer_ip_id, token, amount, approve_amount=None):
             """Pays royalties to receiver IP on behalf of payer IP."""
             try:
-                result = self.story_service.pay_royalty_on_behalf(
+                response = self.story_service.pay_royalty_on_behalf(
                     receiver_ip_id=receiver_ip_id,
                     payer_ip_id=payer_ip_id,
                     token=token,
-                    amount=amount
+                    amount=amount,
+                    approve_amount=approve_amount
                 )
-                
-                return f"Successfully paid royalty. Transaction hash: {result['txHash']}"
+
+                return f"Successfully paid royalty on behalf. Transaction hash: {response['tx_hash']}"
             except Exception as e:
-                return f"Error paying royalty: {str(e)}"
+                return f"Error paying royalty on behalf: {str(e)}"
                 
         # Register it with our mock MCP
         pay_royalty_on_behalf = add_tool('pay_royalty_on_behalf', pay_royalty_on_behalf)
         
         # Mock the service method
         self.story_service.pay_royalty_on_behalf = Mock(return_value={
-            "txHash": "0xabc123"
+            "tx_hash": "0xabc123"
         })
         
         # Call the function
@@ -588,80 +544,111 @@ class TestServerFunctions:
             receiver_ip_id="0x123",
             payer_ip_id="0x456",
             token="0x789",
-            amount=100
+            amount=100,
+            approve_amount=200
         )
         
         # Assertions
-        assert "Successfully paid royalty" in result
+        assert "Successfully paid royalty on behalf" in result
         assert "0xabc123" in result
         self.story_service.pay_royalty_on_behalf.assert_called_once_with(
             receiver_ip_id="0x123",
             payer_ip_id="0x456",
             token="0x789",
-            amount=100
+            amount=100,
+            approve_amount=200
         )
     
-    def test_claim_revenue(self, setup_mocks):
-        """Test the claim_revenue function."""
+    def test_claim_all_revenue(self, setup_mocks):
+        """Test the claim_all_revenue function."""
         server_module, add_tool = setup_mocks
         
         # Create the tool function we want to test
-        def claim_revenue(snapshot_ids, child_ip_id, token):
-            """Claim revenue by snapshot IDs."""
+        def claim_all_revenue(
+            ancestor_ip_id,
+            claimer,
+            child_ip_ids,
+            royalty_policies,
+            currency_tokens,
+            auto_transfer=True
+        ):
+            """Claim all revenue for a given ancestor IP and claimer."""
             try:
-                result = self.story_service.claim_revenue(
-                    snapshot_ids=snapshot_ids,
-                    child_ip_id=child_ip_id,
-                    token=token
+                response = self.story_service.claim_all_revenue(
+                    ancestor_ip_id=ancestor_ip_id,
+                    claimer=claimer,
+                    child_ip_ids=child_ip_ids,
+                    royalty_policies=royalty_policies,
+                    currency_tokens=currency_tokens,
+                    auto_transfer=auto_transfer
                 )
-                
-                return f"Successfully claimed revenue. Transaction hash: {result['txHash']}, Claimed amount: {result.get('claimableToken', 'Unknown')}"
+                return response
             except Exception as e:
-                return f"Error claiming revenue: {str(e)}"
+                return {"error": str(e)}
                 
         # Register it with our mock MCP
-        claim_revenue = add_tool('claim_revenue', claim_revenue)
+        claim_all_revenue = add_tool('claim_all_revenue', claim_all_revenue)
         
         # Mock the service method
-        self.story_service.claim_revenue = Mock(return_value={
-            "txHash": "0xabc123",
-            "claimableToken": 1000
+        self.story_service.claim_all_revenue = Mock(return_value={
+            "receipt": {"status": 1},
+            "claimed_tokens": [{"token": "0x123", "amount": 1000}],
+            "tx_hash": "0xabc123"
         })
         
         # Call the function
-        result = claim_revenue(
-            snapshot_ids=[1, 2, 3],
-            child_ip_id="0x123",
-            token="0x456"
+        result = claim_all_revenue(
+            ancestor_ip_id="0x123",
+            claimer="0x456",
+            child_ip_ids=["0x789"],
+            royalty_policies=["0xaaa"],
+            currency_tokens=["0xbbb"]
         )
         
         # Assertions
-        assert "Successfully claimed revenue" in result
-        assert "0xabc123" in result
-        assert "1000" in result
-        self.story_service.claim_revenue.assert_called_once_with(
-            snapshot_ids=[1, 2, 3],
-            child_ip_id="0x123",
-            token="0x456"
+        assert result["receipt"]["status"] == 1
+        assert result["claimed_tokens"][0]["amount"] == 1000
+        assert result["tx_hash"] == "0xabc123"
+        self.story_service.claim_all_revenue.assert_called_once_with(
+            ancestor_ip_id="0x123",
+            claimer="0x456",
+            child_ip_ids=["0x789"],
+            royalty_policies=["0xaaa"],
+            currency_tokens=["0xbbb"],
+            auto_transfer=True
         )
     
     def test_raise_dispute(self, setup_mocks):
-        """Test the raise_dispute function."""
+        """Test the raise_dispute function with new CID and liveness parameters."""
         server_module, add_tool = setup_mocks
         
         # Create the tool function we want to test
-        def raise_dispute(target_ip_id, dispute_evidence_hash, target_tag, data="0x"):
+        def raise_dispute(
+            target_ip_id,
+            target_tag,
+            cid,
+            bond_amount,
+            liveness=30,
+            approve_amount=None
+        ):
             """Raises a dispute against an IP asset."""
             try:
                 result = self.story_service.raise_dispute(
                     target_ip_id=target_ip_id,
-                    dispute_evidence_hash=dispute_evidence_hash,
                     target_tag=target_tag,
-                    data=data
+                    cid=cid,
+                    bond_amount=bond_amount,
+                    liveness=liveness,
+                    approve_amount=approve_amount
                 )
                 
-                dispute_id = result.get('disputeId', 'Unknown')
-                return f"Successfully raised dispute. Transaction hash: {result['txHash']}, Dispute ID: {dispute_id}"
+                if 'error' in result:
+                    return f"Error raising dispute: {result['error']}"
+                
+                dispute_id = result.get('dispute_id', 'Unknown')
+                liveness_days = result.get('liveness_days', 'Unknown')
+                liveness_seconds = result.get('liveness_seconds', 'Unknown')
+                return f"Successfully raised dispute. Transaction hash: {result['tx_hash']}, Dispute ID: {dispute_id}, Liveness: {liveness_days} days ({liveness_seconds} seconds)"
             except Exception as e:
                 return f"Error raising dispute: {str(e)}"
                 
@@ -670,194 +657,182 @@ class TestServerFunctions:
         
         # Mock the service method
         self.story_service.raise_dispute = Mock(return_value={
-            "txHash": "0xabc123",
-            "disputeId": 42
+            "tx_hash": "0xabc123",
+            "dispute_id": 42,
+            "liveness_days": 30,
+            "liveness_seconds": 2592000
         })
         
         # Call the function
         result = raise_dispute(
             target_ip_id="0x123",
-            dispute_evidence_hash="QmTest456",
-            target_tag="copyright"
+            target_tag="PLAGIARISM",
+            cid="QmTest456",
+            bond_amount=100000000000000000,  # 0.1 IP
+            liveness=30,
+            approve_amount=200000000000000000
         )
         
         # Assertions
         assert "Successfully raised dispute" in result
         assert "0xabc123" in result
         assert "42" in result
+        assert "30 days" in result
+        assert "2592000 seconds" in result
         self.story_service.raise_dispute.assert_called_once_with(
             target_ip_id="0x123",
-            dispute_evidence_hash="QmTest456",
-            target_tag="copyright",
-            data="0x"
+            target_tag="PLAGIARISM",
+            cid="QmTest456",
+            bond_amount=100000000000000000,
+            liveness=30,
+            approve_amount=200000000000000000
         )
     
-    def test_raise_dispute_without_id(self, setup_mocks):
-        """Test the raise_dispute function without dispute ID in response."""
+    def test_raise_dispute_error_response(self, setup_mocks):
+        """Test the raise_dispute function with error in response."""
         server_module, add_tool = setup_mocks
         
         # Create the tool function we want to test
-        def raise_dispute(target_ip_id, dispute_evidence_hash, target_tag, data="0x"):
+        def raise_dispute(
+            target_ip_id,
+            target_tag,
+            cid,
+            bond_amount,
+            liveness=30,
+            approve_amount=None
+        ):
             """Raises a dispute against an IP asset."""
             try:
                 result = self.story_service.raise_dispute(
                     target_ip_id=target_ip_id,
-                    dispute_evidence_hash=dispute_evidence_hash,
                     target_tag=target_tag,
-                    data=data
+                    cid=cid,
+                    bond_amount=bond_amount,
+                    liveness=liveness,
+                    approve_amount=approve_amount
                 )
                 
-                dispute_id = result.get('disputeId', 'Unknown')
-                return f"Successfully raised dispute. Transaction hash: {result['txHash']}, Dispute ID: {dispute_id}"
+                if 'error' in result:
+                    return f"Error raising dispute: {result['error']}"
+                
+                dispute_id = result.get('dispute_id', 'Unknown')
+                liveness_days = result.get('liveness_days', 'Unknown')
+                liveness_seconds = result.get('liveness_seconds', 'Unknown')
+                return f"Successfully raised dispute. Transaction hash: {result['tx_hash']}, Dispute ID: {dispute_id}, Liveness: {liveness_days} days ({liveness_seconds} seconds)"
             except Exception as e:
                 return f"Error raising dispute: {str(e)}"
                 
         # Register it with our mock MCP
         raise_dispute = add_tool('raise_dispute', raise_dispute)
         
-        # Mock the service method
+        # Mock the service method to return error
         self.story_service.raise_dispute = Mock(return_value={
-            "txHash": "0xabc123"
-            # No disputeId
+            "error": "Insufficient bond amount"
         })
         
         # Call the function
         result = raise_dispute(
             target_ip_id="0x123",
-            dispute_evidence_hash="QmTest456",
-            target_tag="copyright"
-        )
-        
-        # Assertions
-        assert "Successfully raised dispute" in result
-        assert "0xabc123" in result
-        assert "Unknown" in result  # Should show default value
-        self.story_service.raise_dispute.assert_called_once()
-    
-    def test_raise_dispute_error(self, setup_mocks):
-        """Test the raise_dispute function with an error."""
-        server_module, add_tool = setup_mocks
-        
-        # Create the tool function we want to test
-        def raise_dispute(target_ip_id, dispute_evidence_hash, target_tag, data="0x"):
-            """Raises a dispute against an IP asset."""
-            try:
-                result = self.story_service.raise_dispute(
-                    target_ip_id=target_ip_id,
-                    dispute_evidence_hash=dispute_evidence_hash,
-                    target_tag=target_tag,
-                    data=data
-                )
-                
-                dispute_id = result.get('disputeId', 'Unknown')
-                return f"Successfully raised dispute. Transaction hash: {result['txHash']}, Dispute ID: {dispute_id}"
-            except Exception as e:
-                return f"Error raising dispute: {str(e)}"
-                
-        # Register it with our mock MCP
-        raise_dispute = add_tool('raise_dispute', raise_dispute)
-        
-        # Mock the service method to raise an exception
-        self.story_service.raise_dispute = Mock(side_effect=Exception("Dispute error"))
-        
-        # Call the function
-        result = raise_dispute(
-            target_ip_id="0x123",
-            dispute_evidence_hash="QmTest456",
-            target_tag="copyright"
+            target_tag="PLAGIARISM",
+            cid="QmTest456",
+            bond_amount=100
         )
         
         # Assertions
         assert "Error raising dispute" in result
-        assert "Dispute error" in result
+        assert "Insufficient bond amount" in result
         self.story_service.raise_dispute.assert_called_once()
     
-    def test_send_ip(self, setup_mocks):
-        """Test the send_ip function."""
+    def test_deposit_wip(self, setup_mocks):
+        """Test the deposit_wip function."""
         server_module, add_tool = setup_mocks
         
         # Create the tool function we want to test
-        def send_ip(to_address, amount):
-            """Send IP tokens to another address."""
+        def deposit_wip(amount):
+            """Wraps the selected amount of IP to WIP."""
             try:
-                response = self.story_service.send_ip(to_address, amount)
-                return f"Successfully sent {amount} IP to {to_address}. Transaction hash: {response['txHash']}"
+                response = self.story_service.deposit_wip(amount=amount)
+                return {'tx_hash': response.get('tx_hash')}
             except Exception as e:
-                return f"Error sending IP: {str(e)}"
+                return {'error': str(e)}
                 
         # Register it with our mock MCP
-        send_ip = add_tool('send_ip', send_ip)
+        deposit_wip = add_tool('deposit_wip', deposit_wip)
         
         # Mock the service method
-        self.story_service.send_ip = Mock(return_value={
-            "txHash": "0xabc123"
+        self.story_service.deposit_wip = Mock(return_value={
+            "tx_hash": "0xabc123"
         })
         
         # Call the function
-        result = send_ip(
-            to_address="0x456",
-            amount=10.5
-        )
+        result = deposit_wip(amount=1000000000000000000)  # 1 IP
         
         # Assertions
-        assert "Successfully sent 10.5 IP to 0x456" in result
-        assert "0xabc123" in result
-        self.story_service.send_ip.assert_called_once_with("0x456", 10.5)
+        assert result['tx_hash'] == "0xabc123"
+        self.story_service.deposit_wip.assert_called_once_with(amount=1000000000000000000)
     
-    def test_send_ip_error(self, setup_mocks):
-        """Test the send_ip function with an error."""
+    def test_transfer_wip(self, setup_mocks):
+        """Test the transfer_wip function."""
         server_module, add_tool = setup_mocks
         
         # Create the tool function we want to test
-        def send_ip(to_address, amount):
-            """Send IP tokens to another address."""
+        def transfer_wip(to, amount):
+            """Transfers `amount` of WIP to a recipient `to`."""
             try:
-                response = self.story_service.send_ip(to_address, amount)
-                return f"Successfully sent {amount} IP to {to_address}. Transaction hash: {response['txHash']}"
+                response = self.story_service.transfer_wip(to=to, amount=amount)
+                return {'tx_hash': response.get('tx_hash')}
             except Exception as e:
-                return f"Error sending IP: {str(e)}"
+                return {'error': str(e)}
                 
         # Register it with our mock MCP
-        send_ip = add_tool('send_ip', send_ip)
+        transfer_wip = add_tool('transfer_wip', transfer_wip)
         
-        # Mock the service method to raise an exception
-        self.story_service.send_ip = Mock(side_effect=Exception("Send error"))
+        # Mock the service method
+        self.story_service.transfer_wip = Mock(return_value={
+            "tx_hash": "0xabc123"
+        })
         
         # Call the function
-        result = send_ip(
-            to_address="0x456",
-            amount=10.5
+        result = transfer_wip(
+            to="0x456",
+            amount=500000000000000000  # 0.5 IP
         )
         
         # Assertions
-        assert "Error sending IP" in result
-        assert "Send error" in result
-        self.story_service.send_ip.assert_called_once()
+        assert result['tx_hash'] == "0xabc123"
+        self.story_service.transfer_wip.assert_called_once_with(
+            to="0x456",
+            amount=500000000000000000
+        )
     
     def test_mint_and_register_ip_with_terms(self, setup_mocks):
-        """Test the mint_and_register_ip_with_terms function."""
+        """Test the mint_and_register_ip_with_terms function with fee handling."""
         server_module, add_tool = setup_mocks
         
         # Create the tool function we want to test
         def mint_and_register_ip_with_terms(
             commercial_rev_share,
             derivatives_allowed,
-            registration_metadata=None,
+            registration_metadata,
+            commercial_use=True,
+            minting_fee=0,
             recipient=None,
-            spg_nft_contract=None
+            spg_nft_contract=None,
+            spg_nft_contract_max_minting_fee=None,
+            approve_amount=None
         ):
             """Mint an NFT, register it as an IP Asset, and attach PIL terms."""
             try:
-                # Validate inputs
-                if not (0 <= commercial_rev_share <= 100):
-                    raise ValueError("commercial_rev_share must be between 0 and 100")
-                
                 response = self.story_service.mint_and_register_ip_with_terms(
                     commercial_rev_share=commercial_rev_share,
                     derivatives_allowed=derivatives_allowed,
                     registration_metadata=registration_metadata,
+                    commercial_use=commercial_use,
+                    minting_fee=minting_fee,
                     recipient=recipient,
                     spg_nft_contract=spg_nft_contract,
+                    spg_nft_contract_max_minting_fee=spg_nft_contract_max_minting_fee,
+                    approve_amount=approve_amount,
                 )
                 
                 explorer_url = (
@@ -866,13 +841,25 @@ class TestServerFunctions:
                     else "https://aeneid.explorer.story.foundation"
                 )
                 
+                # Format fee information for display
+                fee_info = ""
+                if response.get('actual_minting_fee') is not None:
+                    actual_fee = response['actual_minting_fee']
+                    if actual_fee == 0:
+                        fee_info = f"SPG NFT Mint Fee: FREE (0 wei)\n"
+                    else:
+                        # Convert from wei to a more readable format
+                        fee_in_ether = self.story_service.web3.from_wei(actual_fee, 'ether')
+                        fee_info = f"SPG NFT Mint Fee: {actual_fee} wei ({fee_in_ether} IP)\n"
+                
                 return (
                     f"Successfully minted and registered IP asset with terms:\n"
-                    f"Transaction Hash: {response['txHash']}\n"
-                    f"IP ID: {response['ipId']}\n"
-                    f"Token ID: {response['tokenId']}\n"
-                    f"License Terms IDs: {response['licenseTermsIds']}\n"
-                    f"View the IPA here: {explorer_url}/ipa/{response['ipId']}"
+                    f"Transaction Hash: {response.get('tx_hash')}\n"
+                    f"IP ID: {response['ip_id']}\n"
+                    f"Token ID: {response['token_id']}\n"
+                    f"License Terms IDs: {response['license_terms_ids']}\n"
+                    f"{fee_info}"
+                    f"View the IPA here: {explorer_url}/ipa/{response['ip_id']}"
                 )
             except Exception as e:
                 return f"Error minting and registering IP with terms: {str(e)}"
@@ -882,17 +869,21 @@ class TestServerFunctions:
         
         # Mock the service method
         self.story_service.mint_and_register_ip_with_terms = Mock(return_value={
-            "txHash": "0xabc123",
-            "ipId": "0xdef456",
-            "tokenId": 42,
-            "licenseTermsIds": [1, 2]
+            "tx_hash": "0xabc123",
+            "ip_id": "0xdef456",
+            "token_id": 42,
+            "license_terms_ids": [1, 2],
+            "actual_minting_fee": 100000,
+            "max_minting_fee": 200000
         })
         
         # Call the function
         result = mint_and_register_ip_with_terms(
             commercial_rev_share=15,
             derivatives_allowed=True,
-            registration_metadata={"name": "Test NFT"}
+            registration_metadata={"name": "Test NFT"},
+            spg_nft_contract_max_minting_fee=200000,
+            approve_amount=150000
         )
         
         # Assertions
@@ -901,75 +892,19 @@ class TestServerFunctions:
         assert "0xdef456" in result
         assert "42" in result
         assert "[1, 2]" in result
+        assert "100000 wei" in result  # Fee info
         assert "aeneid.explorer.story.foundation" in result  # testnet URL
         self.story_service.mint_and_register_ip_with_terms.assert_called_once_with(
             commercial_rev_share=15,
             derivatives_allowed=True,
             registration_metadata={"name": "Test NFT"},
+            commercial_use=True,
+            minting_fee=0,
             recipient=None,
-            spg_nft_contract=None
+            spg_nft_contract=None,
+            spg_nft_contract_max_minting_fee=200000,
+            approve_amount=150000
         )
-    
-    def test_mint_and_register_ip_with_terms_validation_error(self, setup_mocks):
-        """Test the mint_and_register_ip_with_terms function with validation error."""
-        server_module, add_tool = setup_mocks
-        
-        # Create the tool function we want to test
-        def mint_and_register_ip_with_terms(
-            commercial_rev_share,
-            derivatives_allowed,
-            registration_metadata=None,
-            recipient=None,
-            spg_nft_contract=None
-        ):
-            """Mint an NFT, register it as an IP Asset, and attach PIL terms."""
-            try:
-                # Validate inputs
-                if not (0 <= commercial_rev_share <= 100):
-                    raise ValueError("commercial_rev_share must be between 0 and 100")
-                
-                response = self.story_service.mint_and_register_ip_with_terms(
-                    commercial_rev_share=commercial_rev_share,
-                    derivatives_allowed=derivatives_allowed,
-                    registration_metadata=registration_metadata,
-                    recipient=recipient,
-                    spg_nft_contract=spg_nft_contract,
-                )
-                
-                explorer_url = (
-                    "https://explorer.story.foundation"
-                    if self.story_service.network == "mainnet"
-                    else "https://aeneid.explorer.story.foundation"
-                )
-                
-                return (
-                    f"Successfully minted and registered IP asset with terms:\n"
-                    f"Transaction Hash: {response['txHash']}\n"
-                    f"IP ID: {response['ipId']}\n"
-                    f"Token ID: {response['tokenId']}\n"
-                    f"License Terms IDs: {response['licenseTermsIds']}\n"
-                    f"View the IPA here: {explorer_url}/ipa/{response['ipId']}"
-                )
-            except Exception as e:
-                return f"Error minting and registering IP with terms: {str(e)}"
-                
-        # Register it with our mock MCP
-        mint_and_register_ip_with_terms = add_tool('mint_and_register_ip_with_terms', mint_and_register_ip_with_terms)
-        
-        # Mock the service method
-        self.story_service.mint_and_register_ip_with_terms = Mock()
-        
-        # Call with invalid input
-        result = mint_and_register_ip_with_terms(
-            commercial_rev_share=101,  # Invalid: over 100
-            derivatives_allowed=True
-        )
-        
-        # Assertions
-        assert "Error minting and registering IP with terms" in result
-        assert "must be between 0 and 100" in result
-        # Service should not be called due to input validation
-        self.story_service.mint_and_register_ip_with_terms.assert_not_called()
     
     def test_create_spg_nft_collection(self, setup_mocks):
         """Test the create_spg_nft_collection function."""
@@ -1057,3 +992,56 @@ class TestServerFunctions:
             mint_fee_token=None,
             owner=None
         )
+    
+    def test_get_spg_nft_contract_minting_fee(self, setup_mocks):
+        """Test the get_spg_nft_contract_minting_fee function."""
+        server_module, add_tool = setup_mocks
+        
+        # Create the tool function we want to test
+        def get_spg_nft_contract_minting_fee(spg_nft_contract):
+            """Get the minting fee required by an SPG NFT contract."""
+            try:
+                fee_info = self.story_service.get_spg_nft_contract_minting_fee(spg_nft_contract)
+                
+                fee_amount = fee_info['mint_fee']
+                fee_token = fee_info['mint_fee_token']
+                is_native = fee_info['is_native_token']
+                
+                # Format the fee amount nicely
+                if fee_amount == 0:
+                    fee_display = "FREE (0)"
+                else:
+                    # Convert from wei to a more readable format
+                    fee_in_ether = self.story_service.web3.from_wei(fee_amount, 'ether')
+                    fee_display = f"{fee_amount} wei ({fee_in_ether} IP)"
+                
+                token_display = "Native IP token" if is_native else f"Token at {fee_token}"
+                
+                return (
+                    f"SPG NFT Minting Fee Information:\n"
+                    f"Contract: {spg_nft_contract}\n"
+                    f"Mint Fee: {fee_display}\n"
+                    f"Fee Token: {token_display}\n\n"
+                    f"When minting from this contract, you need to send {fee_amount} wei as the mint_fee parameter."
+                )
+            except Exception as e:
+                return f"Error getting SPG minting fee: {str(e)}"
+                
+        # Register it with our mock MCP
+        get_spg_nft_contract_minting_fee = add_tool('get_spg_nft_contract_minting_fee', get_spg_nft_contract_minting_fee)
+        
+        # Mock the service method
+        self.story_service.get_spg_nft_contract_minting_fee = Mock(return_value={
+            'mint_fee': 100000,
+            'mint_fee_token': "0x1514000000000000000000000000000000000000",
+            'is_native_token': True
+        })
+        
+        # Call the function
+        result = get_spg_nft_contract_minting_fee("0x123")
+        
+        # Assertions
+        assert "SPG NFT Minting Fee Information" in result
+        assert "100000 wei" in result
+        assert "Native IP token" in result
+        self.story_service.get_spg_nft_contract_minting_fee.assert_called_once_with("0x123")

@@ -261,7 +261,7 @@ def create_spg_nft_collection(
         symbol: (REQUIRED) Symbol for the NFT collection
         is_public_minting: (OPTIONAL, default=True) Whether anyone can mint NFTs from this collection
         mint_open: (OPTIONAL, default=True) Whether minting is currently enabled
-        mint_fee_recipient: (OPTIONAL) Address to receive minting fees (defaults to zero address)
+        mint_fee_recipient: (OPTIONAL) Address to receive minting fees (defaults to sender)
         contract_uri: (OPTIONAL) URI for the collection metadata (ERC-7572 standard)
         base_uri: (OPTIONAL) Base URI for the collection. If not empty, tokenURI will be either
                  baseURI + token ID or baseURI + nftMetadataURI
@@ -396,75 +396,75 @@ def get_spg_nft_contract_minting_fee(spg_nft_contract: str) -> str:
 #     except Exception as e:
 #         return f"Error minting NFT: {str(e)}"
 
+# new added but haven't tested
+# @mcp.tool()
+# def mint_and_register_ip_asset(
+#     spg_nft_contract: str,
+#     recipient: Optional[str] = None,
+#     ip_metadata: Optional[dict] = None,
+#     allow_duplicates: bool = True,
+#     spg_nft_contract_max_minting_fee: Optional[int] = None,
+#     approve_amount: Optional[int] = None
+# ) -> str:
+#     """
+#     Mint an NFT and register it as an IP asset in one transaction (without license terms).
 
-@mcp.tool()
-def mint_and_register_ip_asset(
-    spg_nft_contract: str,
-    recipient: Optional[str] = None,
-    ip_metadata: Optional[dict] = None,
-    allow_duplicates: bool = True,
-    spg_nft_contract_max_minting_fee: Optional[int] = None,
-    approve_amount: Optional[int] = None
-) -> str:
-    """
-    Mint an NFT and register it as an IP asset in one transaction (without license terms).
+#     💰 AUTO-APPROVE: This method automatically approves the required WIP token spending before minting.
+#     The approve_amount parameter controls how much WIP to approve for the spender.
 
-    💰 AUTO-APPROVE: This method automatically approves the required WIP token spending before minting.
-    The approve_amount parameter controls how much WIP to approve for the spender.
+#     Args:
+#         spg_nft_contract: The address of the SPG NFT contract to mint from
+#         recipient: Optional recipient address (defaults to sender)
+#         ip_metadata: Optional metadata for the IP
+#             ip_metadata_uri: Optional metadata URI for the IP
+#             ip_metadata_hash: Optional metadata hash for the IP
+#             nft_metadata_uri: Optional metadata URI for the NFT
+#             nft_metadata_hash: Optional metadata hash for the NFT
+#         spg_nft_contract_max_minting_fee: Optional maximum minting fee user is willing to pay (in wei).
+#                         If not specified, will accept whatever the contract requires.
+#                         If specified, will reject if contract requires more than this amount.
+#         approve_amount: Optional; amount to approve for spending WIP tokens (Default is exact amount needed for the transaction). 
 
-    Args:
-        spg_nft_contract: The address of the SPG NFT contract to mint from
-        recipient: Optional recipient address (defaults to sender)
-        ip_metadata: Optional metadata for the IP
-            ip_metadata_uri: Optional metadata URI for the IP
-            ip_metadata_hash: Optional metadata hash for the IP
-            nft_metadata_uri: Optional metadata URI for the NFT
-            nft_metadata_hash: Optional metadata hash for the NFT
-        spg_nft_contract_max_minting_fee: Optional maximum minting fee user is willing to pay (in wei).
-                        If not specified, will accept whatever the contract requires.
-                        If specified, will reject if contract requires more than this amount.
-        approve_amount: Optional; amount to approve for spending WIP tokens (Default is exact amount needed for the transaction). 
+#     Returns:
+#         str: Result message with transaction details
+#     """
+#     try:
+#         response = story_service.mint_and_register_ip_asset(
+#             spg_nft_contract=spg_nft_contract,
+#             recipient=recipient,
+#             ip_metadata=ip_metadata,
+#             allow_duplicates=allow_duplicates,
+#             spg_nft_contract_max_minting_fee=spg_nft_contract_max_minting_fee,
+#             approve_amount=approve_amount,
+#         )
 
-    Returns:
-        str: Result message with transaction details
-    """
-    try:
-        response = story_service.mint_and_register_ip_asset(
-            spg_nft_contract=spg_nft_contract,
-            recipient=recipient,
-            ip_metadata=ip_metadata,
-            allow_duplicates=allow_duplicates,
-            spg_nft_contract_max_minting_fee=spg_nft_contract_max_minting_fee,
-            approve_amount=approve_amount,
-        )
+#         # Determine which explorer URL to use based on network
+#         explorer_url = (
+#             "https://explorer.story.foundation"
+#             if story_service.network == "mainnet"
+#             else "https://aeneid.explorer.story.foundation"
+#         )
 
-        # Determine which explorer URL to use based on network
-        explorer_url = (
-            "https://explorer.story.foundation"
-            if story_service.network == "mainnet"
-            else "https://aeneid.explorer.story.foundation"
-        )
+#         # Format fee information for display
+#         fee_info = ""
+#         if response.get('actual_minting_fee') is not None:
+#             actual_fee = response['actual_minting_fee']
+#             if actual_fee == 0:
+#                 fee_info = f"SPG NFT Mint Fee: FREE (0 wei)\n"
+#             else:
+#                 fee_in_ether = story_service.web3.from_wei(actual_fee, 'ether')
+#                 fee_info = f"SPG NFT Mint Fee: {actual_fee} wei ({fee_in_ether} IP)\n"
 
-        # Format fee information for display
-        fee_info = ""
-        if response.get('actual_minting_fee') is not None:
-            actual_fee = response['actual_minting_fee']
-            if actual_fee == 0:
-                fee_info = f"SPG NFT Mint Fee: FREE (0 wei)\n"
-            else:
-                fee_in_ether = story_service.web3.from_wei(actual_fee, 'ether')
-                fee_info = f"SPG NFT Mint Fee: {actual_fee} wei ({fee_in_ether} IP)\n"
-
-        return (
-            f"Successfully minted and registered IP asset with terms:\n"
-            f"Transaction Hash: {response.get('tx_hash')}\n"
-            f"IP ID: {response['ip_id']}\n"
-            f"Token ID: {response['token_id']}\n"
-            f"{fee_info}"
-            f"View the IPA here: {explorer_url}/ipa/{response['ip_id']}"
-        )
-    except Exception as e:
-        return f"Error minting and registering IP with terms: {str(e)}"
+#         return (
+#             f"Successfully minted and registered IP asset with terms:\n"
+#             f"Transaction Hash: {response.get('tx_hash')}\n"
+#             f"IP ID: {response['ip_id']}\n"
+#             f"Token ID: {response['token_id']}\n"
+#             f"{fee_info}"
+#             f"View the IPA here: {explorer_url}/ipa/{response['ip_id']}"
+#         )
+#     except Exception as e:
+#         return f"Error minting and registering IP with terms: {str(e)}"
 
 
 @mcp.tool()
@@ -609,189 +609,40 @@ def pay_royalty_on_behalf(
         return f"Error paying royalty on behalf: {str(e)}"
 
 
-@mcp.tool()
-def estimate_gas_for_approval(
-    token: str,
-    operation_type: str = "royalty",
-    amount: int = 1000000000000000000000000,
-    spender: Optional[str] = None
-) -> str:
-    """
-    🔍 ADVANCED: Estimate gas costs for token approval before executing the transaction.
-    
-    ⚠️  WHEN TO USE: Only use this tool when:
-    - You need to check gas costs before approving (for budgeting)
-    - Network is congested and you want to optimize gas price
-    - You're doing batch operations and need to plan gas usage
-    - approve_token_for_royalty failed due to gas issues
-    
-    💡 NORMAL USAGE: For most cases, just use approve_token_for_royalty directly.
-    It handles gas estimation automatically with smart defaults.
 
-    Args:
-        token: The token contract address to approve
-        operation_type: Type of operation ("royalty", "licensing", "minting", "custom")
-        amount: The amount to approve (default: large number for unlimited)
-        spender: Optional manual spender address (for custom operations)
+# new added but haven't tested
+# @mcp.tool()
+# def get_token_balance(
+#     token: str,
+#     owner: Optional[str] = None
+# ) -> str:
+#     """
+#     Get the token balance for a specific address.
 
-    Returns:
-        str: Detailed gas estimation including price, limit, and total cost
-    """
-    try:
-        # Auto-determine spender if not provided
-        if spender is None:
-            from services.story_service import StoryService
-            temp_service = story_service
-            
-            if operation_type == "royalty":
-                spender = temp_service.contracts.get("RoyaltyModule")
-            elif operation_type == "licensing":
-                spender = temp_service.contracts.get("LicensingModule")
-            elif operation_type == "minting":
-                spender = temp_service.contracts.get("SPG_NFT")
-            else:
-                return f"Error: For operation_type '{operation_type}', you must provide spender address manually"
-            
-            if not spender:
-                return f"Error: Could not determine spender address for operation_type '{operation_type}'"
-        
-        estimate = story_service.estimate_gas_for_approval(
-            token=token,
-            spender=spender,
-            amount=amount
-        )
-        
-        return (
-            f"⛽ Gas Estimation for Token Approval:\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Operation Type: {operation_type}\n"
-            f"Token: {estimate['token']}\n"
-            f"Spender: {estimate['spender']}\n"
-            f"Amount: {estimate['amount']}\n\n"
-            f"💰 Gas Costs:\n"
-            f"Gas Price: {estimate['gasPriceGwei']:.2f} gwei\n"
-            f"Estimated Gas Limit: {estimate['estimatedGasLimit']:,}\n"
-            f"Total Cost: {estimate['totalCostGwei']:.4f} gwei ({estimate['totalCostIP']:.6f} IP)\n\n"
-            f"💡 Use these values in approve_token_for_royalty:\n"
-            f"- gas_limit: {estimate['estimatedGasLimit']} (or higher for safety)\n"
-            f"- gas_price: {estimate['gasPrice']} (in wei) or {estimate['gasPriceGwei']:.0f} gwei"
-        )
-    except Exception as e:
-        return f"Error estimating gas: {str(e)}"
+#     Args:
+#         token: The token contract address
+#         owner: The address to check balance for (if None, uses current account)
 
+#     Returns:
+#         str: Token balance information
+#     """
+#     try:
+#         response = story_service.get_token_balance(
+#             token_address=token,
+#             owner_address=owner
+#         )
 
-
-@mcp.tool()
-def check_token_allowance(
-    token: str,
-    owner: Optional[str] = None,
-    spender: Optional[str] = None
-) -> str:
-    """
-    Check the current allowance for a token to see if royalty payments are approved.
-
-    Args:
-        token: The token contract address
-        owner: The owner address (if None, uses current account)
-        spender: The spender address (if None, uses royalty contract)
-
-    Returns:
-        str: Current allowance information
-    """
-    try:
-        response = story_service.check_token_allowance(
-            token=token,
-            owner=owner,
-            spender=spender
-        )
-
-        return (
-            f"Token Allowance Information:\n"
-            f"Current Allowance: {response['allowance']}\n"
-            f"Has Allowance: {'Yes' if response['has_allowance'] else 'No'}\n"
-            f"Owner: {response['owner']}\n"
-            f"Spender: {response['spender']}\n"
-            f"Token: {response['token']}"
-        )
-    except Exception as e:
-        return f"Error checking token allowance: {str(e)}"
-
-
-@mcp.tool()
-def get_token_info(token: str) -> str:
-    """
-    Get detailed information about an ERC20 token including name, symbol, decimals, and total supply.
-
-    Args:
-        token: The token contract address
-
-    Returns:
-        str: Comprehensive token information
-    """
-    try:
-        response = story_service.get_token_info(token)
-
-        return (
-            f"🪙 Token Information:\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Address: {response['address']}\n"
-            f"Name: {response['name']}\n"
-            f"Symbol: {response['symbol']}\n"
-            f"Decimals: {response['decimals']}\n"
-            f"Total Supply: {response['total_supply']:,} ({response['total_supply_ormatted']:,.6f} {response['symbol']})"
-        )
-    except Exception as e:
-        return f"Error getting token info: {str(e)}"
-
-
-@mcp.tool()
-def get_token_balance(
-    token: str,
-    owner: Optional[str] = None
-) -> str:
-    """
-    Get the token balance for a specific address.
-
-    Args:
-        token: The token contract address
-        owner: The address to check balance for (if None, uses current account)
-
-    Returns:
-        str: Token balance information
-    """
-    try:
-        response = story_service.get_token_balance(
-            token_address=token,
-            owner_address=owner
-        )
-
-        return (
-            f"💰 Token Balance:\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Address: {response['address']}\n"
-            f"Token: {response['token']}\n"
-            f"Balance: {response['balance_formatted']:,.6f} tokens\n"
-            f"Raw Balance: {response['balance_raw']:,}\n"
-            f"Decimals: {response['decimals']}"
-        )
-    except Exception as e:
-        return f"Error getting token balance: {str(e)}"
-
-
-@mcp.tool()
-def get_erc20_abi_info() -> str:
-    """
-    Get information about the ERC20 ABI being used by the system.
-    This shows the available functions and demonstrates the non-hardcoded approach.
-
-    Returns:
-        str: Information about the ERC20 ABI and available functions
-    """
-    try:
-        return story_service.get_erc20_abi_info()
-    except Exception as e:
-        return f"Error getting ERC20 ABI info: {str(e)}"
-
+#         return (
+#             f"💰 Token Balance:\n"
+#             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+#             f"Address: {response['address']}\n"
+#             f"Token: {response['token']}\n"
+#             f"Balance: {response['balance_formatted']:,.6f} tokens\n"
+#             f"Raw Balance: {response['balance_raw']:,}\n"
+#             f"Decimals: {response['decimals']}"
+#         )
+#     except Exception as e:
+#         return f"Error getting token balance: {str(e)}"
 
 
 
@@ -805,7 +656,8 @@ def claim_all_revenue(
     auto_transfer: bool = True
 ) -> dict:
     """
-    Claim all revenue for a given ancestor IP and claimer.
+    Claims all revenue from the child IPs of an ancestor IP, then optionally transfers tokens to the claimer.
+    
     Args:
         ancestor_ip_id: The ancestor IP ID
         claimer: The claimer address

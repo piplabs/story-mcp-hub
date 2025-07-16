@@ -80,108 +80,109 @@ class StoryService:
         self.address_resolver = create_address_resolver(
             self.web3, chain_id=CHAIN_IDS["mainnet"]
         )  # Story Protocol chain ID for .ip domains
-
-    def _get_erc20_contract(self, token_address: str):
-        """
-        Create an ERC20 contract instance for the given token address.
         
-        Args:
-            token_address: The address of the ERC20 token contract
+    # new added but haven't tested
+    # def _get_erc20_contract(self, token_address: str):
+    #     """
+    #     Create an ERC20 contract instance for the given token address.
+        
+    #     Args:
+    #         token_address: The address of the ERC20 token contract
             
-        Returns:
-            Contract: Web3 contract instance for the ERC20 token
-        """
-        token_address = self.web3.to_checksum_address(token_address)
-        return self.web3.eth.contract(address=token_address, abi=ERC20_ABI)
+    #     Returns:
+    #         Contract: Web3 contract instance for the ERC20 token
+    #     """
+    #     token_address = self.web3.to_checksum_address(token_address)
+    #     return self.web3.eth.contract(address=token_address, abi=ERC20_ABI)
     
     
-    def get_token_balance(self, token_address: str, owner_address: Optional[str] = None) -> str:
-        """
-        Get the token balance for a specific address.
+    # def get_token_balance(self, token_address: str, owner_address: Optional[str] = None) -> str:
+    #     """
+    #     Get the token balance for a specific address.
         
-        Args:
-            token_address: The address of the ERC20 token contract
-            owner_address: The address to check balance for (defaults to current account)
+    #     Args:
+    #         token_address: The address of the ERC20 token contract
+    #         owner_address: The address to check balance for (defaults to current account)
             
-        Returns:
-            str: Token balance information
-        """
-        try:
-            token_contract = self._get_erc20_contract(token_address)
+    #     Returns:
+    #         str: Token balance information
+    #     """
+    #     try:
+    #         token_contract = self._get_erc20_contract(token_address)
             
-            if owner_address is None:
-                owner_address = self.account.address
-            else:
-                owner_address = self.web3.to_checksum_address(owner_address)
+    #         if owner_address is None:
+    #             owner_address = self.account.address
+    #         else:
+    #             owner_address = self.web3.to_checksum_address(owner_address)
             
-            # Get balance and decimals
-            balance = token_contract.functions.balanceOf(owner_address).call()
-            decimals = token_contract.functions.decimals().call()
+    #         # Get balance and decimals
+    #         balance = token_contract.functions.balanceOf(owner_address).call()
+    #         decimals = token_contract.functions.decimals().call()
             
-            response = {
-                'address': owner_address,
-                'token': token_address,
-                'balance_raw': balance,
-                'balance_formatted': balance / (10 ** decimals),
-                'decimals': decimals
-            }
+    #         response = {
+    #             'address': owner_address,
+    #             'token': token_address,
+    #             'balance_raw': balance,
+    #             'balance_formatted': balance / (10 ** decimals),
+    #             'decimals': decimals
+    #         }
 
-            return (
-                f"💰 Token Balance:\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"Address: {response['address']}\n"
-                f"Token: {response['token']}\n"
-                f"Balance: {response['balance_formatted']:,.6f} tokens\n"
-                f"Raw Balance: {response['balance_raw']:,}\n"
-                f"Decimals: {response['decimals']}"
-            )
+    #         return (
+    #             f"💰 Token Balance:\n"
+    #             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    #             f"Address: {response['address']}\n"
+    #             f"Token: {response['token']}\n"
+    #             f"Balance: {response['balance_formatted']:,.6f} tokens\n"
+    #             f"Raw Balance: {response['balance_raw']:,}\n"
+    #             f"Decimals: {response['decimals']}"
+    #         )
             
-        except Exception as e:
-            return f"Error getting token balance: {str(e)}"
+    #     except Exception as e:
+    #         return f"Error getting token balance: {str(e)}"
 
-    def get_erc20_abi_info(self) -> str:
-        """
-        Get information about the ERC20 ABI being used by the system.
-        This shows the available functions and demonstrates the non-hardcoded approach.
+    # def get_erc20_abi_info(self) -> str:
+    #     """
+    #     Get information about the ERC20 ABI being used by the system.
+    #     This shows the available functions and demonstrates the non-hardcoded approach.
 
-        Returns:
-            str: Information about the ERC20 ABI and available functions
-        """
-        try:
-            # Import the ERC20 ABI modules
-            from .erc20_abi import ERC20_ABI, ERC20_EXTENDED_ABI, ERC20_FUNCTIONS, get_erc20_abi
+    #     Returns:
+    #         str: Information about the ERC20 ABI and available functions
+    #     """
+    #     try:
+    #         # Import the ERC20 ABI modules
+    #         from .erc20_abi import ERC20_ABI, ERC20_EXTENDED_ABI, ERC20_FUNCTIONS, get_erc20_abi
             
-            # Get function counts
-            standard_functions = [item for item in ERC20_ABI if item['type'] == 'function']
-            standard_events = [item for item in ERC20_ABI if item['type'] == 'event']
-            extended_functions = [item for item in ERC20_EXTENDED_ABI if item['type'] == 'function']
-            extended_events = [item for item in ERC20_EXTENDED_ABI if item['type'] == 'event']
+    #         # Get function counts
+    #         standard_functions = [item for item in ERC20_ABI if item['type'] == 'function']
+    #         standard_events = [item for item in ERC20_ABI if item['type'] == 'event']
+    #         extended_functions = [item for item in ERC20_EXTENDED_ABI if item['type'] == 'function']
+    #         extended_events = [item for item in ERC20_EXTENDED_ABI if item['type'] == 'event']
             
-            # Get function names
-            standard_function_names = [func['name'] for func in standard_functions]
-            extended_function_names = [func['name'] for func in extended_functions]
+    #         # Get function names
+    #         standard_function_names = [func['name'] for func in standard_functions]
+    #         extended_function_names = [func['name'] for func in extended_functions]
             
-            return (
-                f"📋 ERC20 ABI Information:\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"🔧 Implementation: Imported from dedicated erc20_abi.py module\n"
-                f"✅ Benefits: No hardcoding, easy maintenance, standardized\n\n"
-                f"📊 Standard ERC20 ABI:\n"
-                f"Functions: {len(standard_functions)}\n"
-                f"Events: {len(standard_events)}\n"
-                f"Available Functions: {', '.join(standard_function_names)}\n\n"
-                f"📊 Extended ERC20 ABI (with EIP-2612 permit):\n"
-                f"Functions: {len(extended_functions)}\n"
-                f"Events: {len(extended_events)}\n"
-                f"Additional Functions: {', '.join(set(extended_function_names) - set(standard_function_names))}\n\n"
-                f"🗺️ Function Mapping Available:\n"
-                f"Mapped Functions: {len(ERC20_FUNCTIONS)}\n"
-                f"Example: ERC20_FUNCTIONS['balance_of'] = '{ERC20_FUNCTIONS['balance_of']}'\n\n"
-                f"💡 Usage: All token operations use the imported ABI automatically\n"
-                f"🔄 Maintenance: Update once in erc20_abi.py, changes apply everywhere"
-            )
-        except Exception as e:
-            return f"Error getting ERC20 ABI info: {str(e)}"
+    #         return (
+    #             f"📋 ERC20 ABI Information:\n"
+    #             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    #             f"🔧 Implementation: Imported from dedicated erc20_abi.py module\n"
+    #             f"✅ Benefits: No hardcoding, easy maintenance, standardized\n\n"
+    #             f"📊 Standard ERC20 ABI:\n"
+    #             f"Functions: {len(standard_functions)}\n"
+    #             f"Events: {len(standard_events)}\n"
+    #             f"Available Functions: {', '.join(standard_function_names)}\n\n"
+    #             f"📊 Extended ERC20 ABI (with EIP-2612 permit):\n"
+    #             f"Functions: {len(extended_functions)}\n"
+    #             f"Events: {len(extended_events)}\n"
+    #             f"Additional Functions: {', '.join(set(extended_function_names) - set(standard_function_names))}\n\n"
+    #             f"🗺️ Function Mapping Available:\n"
+    #             f"Mapped Functions: {len(ERC20_FUNCTIONS)}\n"
+    #             f"Example: ERC20_FUNCTIONS['balance_of'] = '{ERC20_FUNCTIONS['balance_of']}'\n\n"
+    #             f"💡 Usage: All token operations use the imported ABI automatically\n"
+    #             f"🔄 Maintenance: Update once in erc20_abi.py, changes apply everywhere"
+    #         )
+    #     except Exception as e:
+    #         return f"Error getting ERC20 ABI info: {str(e)}"
 
     def get_license_terms(self, license_terms_id: int) -> str:
         """Get the license terms for a specific ID."""
@@ -754,7 +755,7 @@ class StoryService:
             symbol: (REQUIRED) Symbol for the NFT collection
             is_public_minting: (OPTIONAL, default=True) Whether anyone can mint NFTs from this collection
             mint_open: (OPTIONAL, default=True) Whether minting is currently enabled
-            mint_fee_recipient: (OPTIONAL) Address to receive minting fees (defaults to zero address)
+            mint_fee_recipient: (OPTIONAL) Address to receive minting fees (defaults to sender)
             contract_uri: (OPTIONAL) URI for the collection metadata (ERC-7572 standard)
             base_uri: (OPTIONAL) Base URI for the collection. If not empty, tokenURI will be either
                      baseURI + token ID or baseURI + nftMetadataURI
@@ -775,12 +776,12 @@ class StoryService:
 
         try:
             # Validate mint fee recipient when there's a fee
-            if mint_fee_recipient is None and mint_fee is not None and mint_fee > 0:
-                raise Exception("Mint fee recipient is required if mint fee is greater than 0")
+            # if mint_fee_recipient is None and mint_fee is not None and mint_fee > 0:
+            #     raise Exception("Mint fee recipient is required if mint fee is greater than 0")
             
             # Default mint_fee_recipient to zero address if not provided
             if mint_fee_recipient is None:
-                mint_fee_recipient = "0x0000000000000000000000000000000000000000"
+                mint_fee_recipient = self.account.address
             else:
                 # Resolve the address if it's a domain name
                 mint_fee_recipient = self.address_resolver.resolve_address(
@@ -1262,129 +1263,129 @@ class StoryService:
         except Exception as e:
             print(f"Error paying royalty: {str(e)}")
             raise
+    # new added but haven't tested
+    # def estimate_gas_for_approval(
+    #     self,
+    #     token: str,
+    #     spender: str,
+    #     amount: int
+    # ) -> dict:
+    #     """
+    #     Estimate gas costs for token approval transaction.
 
-    def estimate_gas_for_approval(
-        self,
-        token: str,
-        spender: str,
-        amount: int
-    ) -> dict:
-        """
-        Estimate gas costs for token approval transaction.
+    #     Args:
+    #         token: Token contract address
+    #         spender: Spender contract address  
+    #         amount: Amount to approve
 
-        Args:
-            token: Token contract address
-            spender: Spender contract address  
-            amount: Amount to approve
+    #     Returns:
+    #         dict: Gas estimation details including price, limit, and total cost
+    #     """
+    #     try:
+    #         # Ensure addresses are checksummed
+    #         token = self.web3.to_checksum_address(token)
+    #         spender = self.web3.to_checksum_address(spender)
+            
+    #         # Create ERC20 contract instance using helper method
+    #         token_contract = self._get_erc20_contract(token)
+            
+    #         # Get current gas price
+    #         try:
+    #             current_gas_price = self.web3.eth.gas_price
+    #         except Exception:
+    #             current_gas_price = self.web3.to_wei(50, "gwei")  # Fallback
+            
+    #         # Estimate gas limit
+    #         try:
+    #             estimated_gas = token_contract.functions.approve(spender, amount).estimate_gas({
+    #                 'from': self.account.address
+    #             })
+    #             # Add 20% buffer for safety
+    #             gas_limit = int(estimated_gas * 1.2)
+    #         except Exception:
+    #             gas_limit = 100000  # Fallback for approve transactions
+            
+    #         # Calculate costs in different units
+    #         total_cost_wei = current_gas_price * gas_limit
+    #         total_cost_gwei = self.web3.from_wei(total_cost_wei, 'gwei')
+    #         total_cost_ip = self.web3.from_wei(total_cost_wei, 'ether')
+            
+    #         # Get gas price in gwei for display
+    #         gas_price_gwei = self.web3.from_wei(current_gas_price, 'gwei')
+            
+    #         return {
+    #             'gasPrice': current_gas_price,
+    #             'gasPriceGwei': float(gas_price_gwei),
+    #             'estimatedGasLimit': gas_limit,
+    #             'totalCostWei': total_cost_wei,
+    #             'totalCostGwei': float(total_cost_gwei),
+    #             'totalCostIP': float(total_cost_ip),
+    #             'token': token,
+    #             'spender': spender,
+    #             'amount': amount
+    #         }
+            
+    #     except Exception as e:
+    #         print(f"Error estimating gas: {str(e)}")
+    #         raise
 
-        Returns:
-            dict: Gas estimation details including price, limit, and total cost
-        """
-        try:
-            # Ensure addresses are checksummed
-            token = self.web3.to_checksum_address(token)
-            spender = self.web3.to_checksum_address(spender)
-            
-            # Create ERC20 contract instance using helper method
-            token_contract = self._get_erc20_contract(token)
-            
-            # Get current gas price
-            try:
-                current_gas_price = self.web3.eth.gas_price
-            except Exception:
-                current_gas_price = self.web3.to_wei(50, "gwei")  # Fallback
-            
-            # Estimate gas limit
-            try:
-                estimated_gas = token_contract.functions.approve(spender, amount).estimate_gas({
-                    'from': self.account.address
-                })
-                # Add 20% buffer for safety
-                gas_limit = int(estimated_gas * 1.2)
-            except Exception:
-                gas_limit = 100000  # Fallback for approve transactions
-            
-            # Calculate costs in different units
-            total_cost_wei = current_gas_price * gas_limit
-            total_cost_gwei = self.web3.from_wei(total_cost_wei, 'gwei')
-            total_cost_ip = self.web3.from_wei(total_cost_wei, 'ether')
-            
-            # Get gas price in gwei for display
-            gas_price_gwei = self.web3.from_wei(current_gas_price, 'gwei')
-            
-            return {
-                'gasPrice': current_gas_price,
-                'gasPriceGwei': float(gas_price_gwei),
-                'estimatedGasLimit': gas_limit,
-                'totalCostWei': total_cost_wei,
-                'totalCostGwei': float(total_cost_gwei),
-                'totalCostIP': float(total_cost_ip),
-                'token': token,
-                'spender': spender,
-                'amount': amount
-            }
-            
-        except Exception as e:
-            print(f"Error estimating gas: {str(e)}")
-            raise
-
-    def check_token_allowance(
-        self,
-        token: str,
-        owner: Optional[str] = None,
-        spender: Optional[str] = None
-    ) -> dict:
-        """
-        Check the current allowance for a token.
+    # def check_token_allowance(
+    #     self,
+    #     token: str,
+    #     owner: Optional[str] = None,
+    #     spender: Optional[str] = None
+    # ) -> dict:
+    #     """
+    #     Check the current allowance for a token.
         
-        Args:
-            token: The token contract address
-            owner: The owner address (if None, uses current account)
-            spender: The spender address (if None, uses royalty contract)
+    #     Args:
+    #         token: The token contract address
+    #         owner: The owner address (if None, uses current account)
+    #         spender: The spender address (if None, uses royalty contract)
             
-        Returns:
-            dict: Dictionary with allowance information
-        """
-        try:
-            # Ensure token address is checksummed
-            token = self.web3.to_checksum_address(token)
+    #     Returns:
+    #         dict: Dictionary with allowance information
+    #     """
+    #     try:
+    #         # Ensure token address is checksummed
+    #         token = self.web3.to_checksum_address(token)
             
-            # Use current account as owner if not provided
-            if owner is None:
-                owner = self.account.address
-            else:
-                owner = self.web3.to_checksum_address(owner)
+    #         # Use current account as owner if not provided
+    #         if owner is None:
+    #             owner = self.account.address
+    #         else:
+    #             owner = self.web3.to_checksum_address(owner)
             
-            # Get the royalty contract address if spender not provided
-            if spender is None:
-                try:
-                    spender = self.contracts.get("RoyaltyModule")
-                    if not spender:
-                        spender = getattr(self.client.Royalty, 'address', None)
-                        if not spender:
-                            raise ValueError("Could not determine royalty contract address")
-                except:
-                    raise ValueError("Could not determine royalty contract address. Please provide the spender address.")
+    #         # Get the royalty contract address if spender not provided
+    #         if spender is None:
+    #             try:
+    #                 spender = self.contracts.get("RoyaltyModule")
+    #                 if not spender:
+    #                     spender = getattr(self.client.Royalty, 'address', None)
+    #                     if not spender:
+    #                         raise ValueError("Could not determine royalty contract address")
+    #             except:
+    #                 raise ValueError("Could not determine royalty contract address. Please provide the spender address.")
             
-            spender = self.web3.to_checksum_address(spender)
+    #         spender = self.web3.to_checksum_address(spender)
             
-            # Create ERC20 contract instance using helper method
-            token_contract = self._get_erc20_contract(token)
+    #         # Create ERC20 contract instance using helper method
+    #         token_contract = self._get_erc20_contract(token)
             
-            # Get current allowance
-            allowance = token_contract.functions.allowance(owner, spender).call()
+    #         # Get current allowance
+    #         allowance = token_contract.functions.allowance(owner, spender).call()
             
-            return {
-                'allowance': allowance,
-                'owner': owner,
-                'spender': spender,
-                'token': token,
-                'has_allowance': allowance > 0
-            }
+    #         return {
+    #             'allowance': allowance,
+    #             'owner': owner,
+    #             'spender': spender,
+    #             'token': token,
+    #             'has_allowance': allowance > 0
+    #         }
             
-        except Exception as e:
-            print(f"Error checking token allowance: {str(e)}")
-            raise
+    #     except Exception as e:
+    #         print(f"Error checking token allowance: {str(e)}")
+    #         raise
 
     def claim_all_revenue(
             self, 
@@ -1396,7 +1397,7 @@ class StoryService:
             auto_transfer: bool = True,
             ) -> dict:
         """
-        Allows token holders to claim revenue by a list of snapshot IDs based on the token balance at certain snapshot.
+        Claims all revenue from the child IPs of an ancestor IP, then optionally transfers tokens to the claimer.
         
         Args:
             ancestor_ip_id: The ancestor IP ID
@@ -1409,11 +1410,16 @@ class StoryService:
             dict: A dictionary with transaction details and claimed tokens.
         """
         try:
-            # Ensure the token address is checksummed
-            token = self.web3.to_checksum_address(token)
+            # Ensure addresses are checksummed
+            ancestor_ip_id = self.web3.to_checksum_address(ancestor_ip_id)
+            claimer = self.web3.to_checksum_address(claimer)
+            child_ip_ids = [self.web3.to_checksum_address(child_id) for child_id in child_ip_ids]
+            royalty_policies = [self.web3.to_checksum_address(policy) for policy in royalty_policies]
+            currency_tokens = [self.web3.to_checksum_address(token) for token in currency_tokens]
             
             claim_options = {
-                'auto_transfer_all_claimed_tokens_from_ip': auto_transfer
+                'auto_transfer_all_claimed_tokens_from_ip': auto_transfer,
+                'auto_unwrap_ip_tokens': False
                 }
             # Call the SDK function
             response = self.client.Royalty.claim_all_revenue(
@@ -1476,20 +1482,11 @@ class StoryService:
             dispute_spender = "0xfFD98c3877B8789124f02C7E8239A4b0Ef11E936"
             required_amount = bond_amount  # The amount needed for the transaction
             
-            if approve_amount is None:
-                # Use the exact amount needed for the transaction
-                approve_amount = required_amount
-            elif approve_amount < required_amount:
-                # Check current allowance first
-                current_allowance = self.client.WIP.allowance(self.account.address, dispute_spender)
-                current_allowance += approve_amount
-                if current_allowance < required_amount:
-                    # Raise error if allowance is insufficient
-                    raise ValueError("allowance is insufficient")
+            
                 
             
             # Call approve before the transaction if needed
-            self.approve(spender=dispute_spender, amount=approve_amount)
+            self._approve_wip(spender=dispute_spender, required_amount=required_amount, approve_amount=approve_amount)
             
             # Use the SDK's dispute functionality - it handles all the complex logic!
             response = self.client.Dispute.raise_dispute(

@@ -47,3 +47,8 @@ filterwarnings = [
     "ignore::DeprecationWarning",
 ]
 addopts = "--cov=. --cov-report=term-missing"
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=6.0.0",
+]

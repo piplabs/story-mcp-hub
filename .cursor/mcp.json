@@ -4,7 +4,7 @@
       "command": "uv",
       "args": [
         "--directory",
-        "/Users/zizhuoliu/story-mcp-hub/storyscan-mcp",
+        "storyscan-mcp",
         "run",
         "server.py"
       ]
@@ -13,7 +13,7 @@
       "command": "uv",
       "args": [
         "--directory",
-        "/Users/zizhuoliu/story-mcp-hub/story-sdk-mcp",
+        "story-sdk-mcp",
         "run",
         "server.py"
       ]

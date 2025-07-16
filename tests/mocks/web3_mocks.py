@@ -30,10 +30,10 @@ SAMPLE_LICENSE_TERMS_ID = 1
 def get_mock_mint_and_register_response() -> Dict[str, Any]:
     """Get mock response for mint and register operations"""
     return {
-        "txHash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-        "ipId": SAMPLE_IP_ID,
-        "tokenId": SAMPLE_TOKEN_ID,
-        "licenseTermsIds": [SAMPLE_LICENSE_TERMS_ID]
+        "tx_hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        "ip_id": SAMPLE_IP_ID,
+        "token_id": SAMPLE_TOKEN_ID,
+        "license_terms_ids": [SAMPLE_LICENSE_TERMS_ID]
     }
 
 def get_mock_license_terms() -> List[Any]:
