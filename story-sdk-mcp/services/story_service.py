@@ -13,7 +13,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from utils.address_resolver import create_address_resolver
 from utils.contract_addresses import get_contracts_by_chain_id, CHAIN_IDS
-from .erc20_abi import ERC20_ABI
+from .erc20_abi import ERC20_ABI, ERC20_FUNCTIONS
 
 
 class StoryService:
@@ -648,7 +648,6 @@ class StoryService:
             # Check if the contract requires a minting fee
             fee_info = self.get_spg_nft_contract_minting_fee(spg_nft_contract)
             required_fee = fee_info['mint_fee']
-            mint_fee_token = fee_info['mint_fee_token']
             
             # Validate against user's maximum if specified
             if spg_nft_contract_max_minting_fee is not None and required_fee > spg_nft_contract_max_minting_fee:
@@ -658,13 +657,11 @@ class StoryService:
                     f"Increase spg_nft_contract_max_minting_fee or use a different contract."
                 )
             
-            # Handle approve logic - approve the correct token type
+            # Handle approve logic
             mint_and_register_spender = "0xa38f42B8d33809917f23997B8423054aAB97322C"
             if required_fee > 0:
-                # Approve the specific token that the collection requires
-                approve_transaction_hash = self._approve_token(
-                    token_address=mint_fee_token,
-                    spender=mint_and_register_spender, 
+                approve_transaction_hash = self._approve_wip(
+                    spender=spg_nft_contract, 
                     required_amount=required_fee, 
                     approve_amount=approve_amount)
             
@@ -709,8 +706,7 @@ class StoryService:
             if required_fee > 0:
                 tx_options = {'value': required_fee}
                 fee_ether = self.web3.from_wei(required_fee, 'ether')
-                token_symbol = self._get_token_symbol(mint_fee_token)
-                print(f"SPG contract requires minting fee: {required_fee} wei ({fee_ether} {token_symbol})")
+                print(f"SPG contract requires minting fee: {required_fee} wei ({fee_ether} IP)")
             else:
                 print("SPG contract is free. Using SDK without additional fees.")
 
@@ -959,24 +955,7 @@ class StoryService:
     #         print(f"Error registering IP asset: {str(e)}")
     #         raise
 
-    # def attach_license_terms(self, ip_id: str, license_terms_id: int) -> dict:
-    #     """
-    #     Attach a licensing policy to an IP Asset
-
-    #     :param ip_id: IP Asset ID
-    #     :param license_terms_id: License terms ID to attach
-    #     :return: Transaction details
-    #     """
-    #     try:
-    #         # Using the License module from the SDK
-    #         response = self.client.License.addPolicyToIp(
-    #             ipId=ip_id,
-    #             licenseTermsId=license_terms_id
-    #         )
-    #         return response
-    #     except Exception as e:
-    #         print(f"Error attaching license terms: {str(e)}")
-    #         raise
+    
     # TODO: keep this function and test for now - pass in spg nft contract. image url -> upload to ipfs -> create metadata -> mint and register nft
     # def mint_and_register_nft(self, to_address: str, metadata_uri: str, ip_metadata: dict) -> dict:
     #     """
@@ -1001,7 +980,7 @@ class StoryService:
 
     
 
-    def get_spg_nft_contract_minting_fee(self, spg_nft_contract: str) -> dict:
+    def get_spg_nft_contract_minting_fee_and_token(self, spg_nft_contract: str) -> dict:
         """
         Get the minting fee required by an SPG NFT contract.
         
@@ -1011,49 +990,16 @@ class StoryService:
         Returns:
             dict: Contains mint_fee and mint_fee_token information
         """
-        try:
-            # Ensure the contract address is checksummed
-            spg_nft_contract = self.web3.to_checksum_address(spg_nft_contract)
-            
-            # Define the ABI for the mintFee function
-            mint_fee_abi = [
-                {
-                    "inputs": [],
-                    "name": "mintFee",
-                    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [],
-                    "name": "mintFeeToken",
-                    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
-                    "stateMutability": "view",
-                    "type": "function"
-                }
-            ]
-            
-            # Create contract instance
-            contract = self.web3.eth.contract(address=spg_nft_contract, abi=mint_fee_abi)
-            
-            # Get mint fee and token
-            mint_fee = contract.functions.mintFee().call()
-            mint_fee_token = contract.functions.mintFeeToken().call()
-            
+        try: 
+            mint_fee = self.client.NFTClient.get_mint_fee(spg_nft_contract)
+            mint_fee_token = self.client.NFTClient.get_mint_fee_token(spg_nft_contract)
             return {
                 'mint_fee': mint_fee,
-                'mint_fee_token': mint_fee_token,
-                'is_native_token': mint_fee_token == "0x1514000000000000000000000000000000000000"
+                'mint_fee_token': mint_fee_token
             }
-            
         except Exception as e:
-            print(f"Error getting SPG minting fee: {str(e)}")
-            # Return defaults if unable to read
-            return {
-                'mint_fee': 0,
-                'mint_fee_token': "0x1514000000000000000000000000000000000000",
-                'is_native_token': True
-            }
+            print(f"Error getting minting fee: {str(e)}")
+            raise
 
     def register(
         self,
@@ -1146,75 +1092,76 @@ class StoryService:
             print(f"Error attaching license terms: {str(e)}")
             raise
 
-    def register_derivative(
-        self,
-        child_ip_id: str,
-        parent_ip_ids: list,
-        license_terms_ids: list,
-        max_minting_fee: int = 0,
-        max_rts: int = 0,
-        max_revenue_share: int = 0,
-        license_template: Optional[str] = None,
-        approve_amount: Optional[int] = None
-    ) -> dict:
-        """
-        Registers a derivative directly with parent IP's license terms, without needing license tokens.
+    # bugs in sdk, will fix after next sdk release
+    # def register_derivative(
+    #     self,
+    #     child_ip_id: str,
+    #     parent_ip_ids: list,
+    #     license_terms_ids: list,
+    #     max_minting_fee: int = 0,
+    #     max_rts: int = 0,
+    #     max_revenue_share: int = 0,
+    #     license_template: Optional[str] = None,
+    #     approve_amount: Optional[int] = None
+    # ) -> dict:
+    #     """
+    #     Registers a derivative directly with parent IP's license terms, without needing license tokens.
 
-        Args:
-            child_ip_id: The derivative IP ID
-            parent_ip_ids: The parent IP IDs
-            license_terms_ids: The IDs of the license terms that the parent IP supports
-            max_minting_fee: The maximum minting fee that the caller is willing to pay in wei (default: 0 = no limit)
-            max_rts: The maximum number of royalty tokens that can be distributed in wei (max: 100,000,000) (default: 0 = no limit)
-            max_revenue_share: The maximum revenue share percentage allowed 0-100 (default: 0 = no limit)
-            license_template: [Optional] address of the license template (defaults to the default template)
-            approve_amount: [Optional] amount to approve for spending WIP tokens in wei. If None, uses the exact amount needed for the transaction.
+    #     Args:
+    #         child_ip_id: The derivative IP ID
+    #         parent_ip_ids: The parent IP IDs
+    #         license_terms_ids: The IDs of the license terms that the parent IP supports
+    #         max_minting_fee: The maximum minting fee that the caller is willing to pay in wei (default: 0 = no limit)
+    #         max_rts: The maximum number of royalty tokens that can be distributed in wei (max: 100,000,000) (default: 0 = no limit)
+    #         max_revenue_share: The maximum revenue share percentage allowed 0-100 (default: 0 = no limit)
+    #         license_template: [Optional] address of the license template (defaults to the default template)
+    #         approve_amount: [Optional] amount to approve for spending WIP tokens in wei. If None, uses the exact amount needed for the transaction.
 
-        Returns:
-            dict: Dictionary with the transaction hash
-        """
-        try:
-            # Validate inputs
-            if len(parent_ip_ids) != len(license_terms_ids):
-                raise ValueError("The number of parent IP IDs must match the number of license terms IDs.")
+    #     Returns:
+    #         dict: Dictionary with the transaction hash
+    #     """
+    #     try:
+    #         # Validate inputs
+    #         if len(parent_ip_ids) != len(license_terms_ids):
+    #             raise ValueError("The number of parent IP IDs must match the number of license terms IDs.")
             
-            # Use default license template if none provided
-            if license_template is None:
-                license_template = self.LICENSE_TEMPLATE
+    #         # Use default license template if none provided
+    #         if license_template is None:
+    #             license_template = self.LICENSE_TEMPLATE
             
-            # Ensure the license template address is checksummed
-            license_template = self.web3.to_checksum_address(license_template)
+    #         # Ensure the license template address is checksummed
+    #         license_template = self.web3.to_checksum_address(license_template)
             
-            register_derivative_spender = "0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086"
-            required_fee = 0
-            for i in range(len(license_terms_ids)):
-                required_fee += self.get_license_terms(license_terms_id=license_terms_ids[i]).get("defaultMintingFee")
+    #         register_derivative_spender = "0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086"
+    #         required_fee = 0
+    #         for i in range(len(license_terms_ids)):
+    #             required_fee += self.get_license_terms(license_terms_id=license_terms_ids[i]).get("defaultMintingFee")
 
-            # approve WIP tokens for registering derivative
-            if required_fee > 0:
-                approve_transaction_hash = self._approve_wip(
-                    spender=register_derivative_spender, 
-                    required_amount=required_fee, 
-                    approve_amount=approve_amount)
+    #         # approve WIP tokens for registering derivative
+    #         if required_fee > 0:
+    #             approve_transaction_hash = self._approve_wip(
+    #                 spender=register_derivative_spender, 
+    #                 required_amount=required_fee, 
+    #                 approve_amount=approve_amount)
             
-            # Call the SDK function
-            result = self.client.IPAsset.register_derivative(
-                child_ip_id=child_ip_id,
-                parent_ip_ids=parent_ip_ids,
-                license_terms_ids=license_terms_ids,
-                max_minting_fee=max_minting_fee,
-                max_rts=max_rts,
-                max_revenue_share=max_revenue_share * 10 ** 6,
-                license_template=license_template
-            )
+    #         # Call the SDK function
+    #         result = self.client.IPAsset.register_derivative(
+    #             child_ip_id=child_ip_id,
+    #             parent_ip_ids=parent_ip_ids,
+    #             license_terms_ids=license_terms_ids,
+    #             max_minting_fee=max_minting_fee,
+    #             max_rts=max_rts,
+    #             max_revenue_share=max_revenue_share * 10 ** 6,
+    #             license_template=license_template
+    #         )
             
-            return {
-                'tx_hash': result.get('tx_hash')
-            }
+    #         return {
+    #             'tx_hash': result.get('tx_hash')
+    #         }
             
-        except Exception as e:
-            print(f"Error registering derivative: {str(e)}")
-            raise
+    #     except Exception as e:
+    #         print(f"Error registering derivative: {str(e)}")
+    #         raise
 
     def pay_royalty_on_behalf(
         self,
@@ -1267,6 +1214,7 @@ class StoryService:
         except Exception as e:
             print(f"Error paying royalty: {str(e)}")
             raise
+    
     # new added but haven't tested
     # def estimate_gas_for_approval(
     #     self,
@@ -1523,193 +1471,6 @@ class StoryService:
             print(f"Error raising dispute: {str(e)}")
             raise
 
-    def _approve_token(
-        self, 
-        token_address: str,
-        spender: str,  
-        required_amount: int,
-        approve_amount: Optional[int] = None
-    ) -> dict:
-        """
-        Generic method to approve any ERC20 token for spending by a spender.
-        Supports WIP, native IP token, and other ERC20 tokens.
-        
-        Args:
-            token_address: The address of the token to approve
-            spender: The address of the spender
-            required_amount: The minimum amount needed for the transaction
-            approve_amount: Optional amount to approve (defaults to required_amount)
-            
-        Returns:
-            dict: Dictionary containing the transaction hash
-        """
-        try:
-            # Normalize token address
-            token_address = self.web3.to_checksum_address(token_address)
-            spender = self.web3.to_checksum_address(spender)
-            
-            # Determine approve amount
-            if approve_amount is None:
-                approve_amount = required_amount
-            elif approve_amount < required_amount:
-                # Check if current allowance + new approval is sufficient
-                current_allowance = self._get_token_allowance(token_address, self.account.address, spender)
-                if current_allowance + approve_amount < required_amount:
-                    raise ValueError(
-                        f"Insufficient allowance: current {current_allowance} + approve {approve_amount} "
-                        f"< required {required_amount}"
-                    )
-            
-            # Handle different token types
-            if self._is_wip_token(token_address):
-                # Use WIP SDK interface
-                return self._approve_wip(spender, required_amount, approve_amount)
-            
-            elif self._is_native_ip_token(token_address):
-                # Native IP token doesn't need approval for direct payments in many cases
-                # but if approval is needed, use standard ERC20 interface  
-                print(f"Approving native IP token for spender {spender}")
-                return self._approve_erc20_token(token_address, spender, approve_amount)
-            
-            else:
-                # Generic ERC20 token
-                print(f"Approving ERC20 token {token_address} for spender {spender}")
-                return self._approve_erc20_token(token_address, spender, approve_amount)
-                
-        except Exception as e:
-            print(f"Error approving token {token_address}: {str(e)}")
-            raise
-    
-    def _approve_erc20_token(
-        self, 
-        token_address: str, 
-        spender: str, 
-        amount: int
-    ) -> dict:
-        """
-        Approve a generic ERC20 token using web3 contract interface.
-        
-        Args:
-            token_address: The ERC20 token contract address
-            spender: The spender address
-            amount: The amount to approve
-            
-        Returns:
-            dict: Dictionary containing the transaction hash
-        """
-        try:
-            # Create ERC20 contract instance
-            token_contract = self._get_erc20_contract(token_address)
-            
-            # Get current gas price
-            try:
-                gas_price = self.web3.eth.gas_price
-            except Exception:
-                gas_price = self.web3.to_wei(50, "gwei")  # Fallback
-            
-            # Build transaction
-            approve_txn = token_contract.functions.approve(spender, amount).build_transaction({
-                'from': self.account.address,
-                'nonce': self.web3.eth.get_transaction_count(self.account.address),
-                'gas': 100000,  # Standard gas limit for approve
-                'gasPrice': gas_price,
-                'chainId': 1315,  # Story Protocol chain ID
-            })
-            
-            # Sign and send transaction
-            signed_txn = self.account.sign_transaction(approve_txn)
-            tx_hash = self.web3.eth.send_raw_transaction(signed_txn.raw_transaction)
-            
-            # Wait for confirmation
-            tx_receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            
-            return {'tx_hash': tx_hash.hex()}
-            
-        except Exception as e:
-            print(f"Error approving ERC20 token: {str(e)}")
-            raise
-    
-    def _get_erc20_contract(self, token_address: str):
-        """
-        Create an ERC20 contract instance.
-        
-        Args:
-            token_address: The token contract address
-            
-        Returns:
-            Contract instance
-        """
-        return self.web3.eth.contract(
-            address=self.web3.to_checksum_address(token_address), 
-            abi=ERC20_ABI
-        )
-    
-    def _get_token_allowance(
-        self, 
-        token_address: str, 
-        owner: str, 
-        spender: str
-    ) -> int:
-        """
-        Get current token allowance.
-        
-        Args:
-            token_address: The token contract address
-            owner: The token owner address
-            spender: The spender address
-            
-        Returns:
-            Current allowance amount
-        """
-        try:
-            if self._is_wip_token(token_address):
-                # Use WIP SDK interface
-                return self.client.WIP.allowance(owner, spender)
-            else:
-                # Use generic ERC20 interface
-                token_contract = self._get_erc20_contract(token_address)
-                return token_contract.functions.allowance(owner, spender).call()
-                
-        except Exception as e:
-            print(f"Error getting allowance: {str(e)}")
-            return 0
-    
-    def _get_token_symbol(self, token_address: str) -> str:
-        """
-        Get token symbol for display purposes.
-        
-        Args:
-            token_address: The token contract address
-            
-        Returns:
-            Token symbol string
-        """
-        try:
-            if self._is_native_ip_token(token_address):
-                return "IP"
-            elif self._is_wip_token(token_address):
-                return "WIP"
-            else:
-                # Try to get symbol from ERC20 contract
-                token_contract = self._get_erc20_contract(token_address)
-                return token_contract.functions.symbol().call()
-        except Exception:
-            return "TOKEN"
-    
-    def _is_wip_token(self, token_address: str) -> bool:
-        """Check if the token is WIP token."""
-        # You would need to configure the actual WIP token address based on your network
-        # This is a placeholder - replace with the actual WIP token address
-        wip_addresses = {
-            # Add known WIP token addresses for different networks
-            # "0xActualWIPTokenAddress": True,  # Replace with actual WIP address
-        }
-        return token_address.lower() in [addr.lower() for addr in wip_addresses.keys()]
-    
-    def _is_native_ip_token(self, token_address: str) -> bool:
-        """Check if the token is the native IP token."""
-        return token_address.lower() == "0x1514000000000000000000000000000000000000"
-
     def _approve_wip(
             self, 
             spender: str,  
@@ -1742,7 +1503,61 @@ class StoryService:
             return {'tx_hash': response.get('tx_hash')}
         except Exception as e:
             print(f"Error approving WIP: {str(e)}")
-            raise
+            raise    # def pay_royalty_on_behalf_approve(self, amount: int) -> dict:
+    #     """
+    #     Approve a spender to use the wallet's WIP balance for royalty payments on behalf of another IP.
+    #     :param amount int: The amount of WIP to approve for royalty on behalf of another IP.
+    #     :return dict: A dictionary containing the transaction hash.
+    #     """
+    #     royalty_spender = "0xa38f42B8d33809917f23997B8423054aAB97322C"
+    #     response = self.client.WIP.approve(
+    #         spender=royalty_spender,
+    #         amount=amount,
+    #         tx_options=None
+    #     )
+    #     return {'tx_hash': response.get('tx_hash')}
+    
+    # def mint_and_register_ip_approve(self, amount: int) -> dict:
+    #     """
+    #     Approve a spender to use the wallet's WIP balance for minting and registering IP.
+    #     :param amount int: The amount of WIP to approve for minting and registering IP.
+    #     :return dict: A dictionary containing the transaction hash.
+    #     """
+    #     mint_and_register_spender = "0xa38f42B8d33809917f23997B8423054aAB97322C"
+    #     response = self.client.WIP.approve(
+    #         spender=mint_and_register_spender,
+    #         amount=amount,
+    #         tx_options=None
+    #     )
+    #     return {'tx_hash': response.get('tx_hash')}
+    
+    # def raise_dispute_bond_approve(self, amount: int) -> dict:
+    #     """
+    #     Approve a spender to use the wallet's WIP balance for raise dispute bond payments.
+    #     :param amount int: The amount of WIP to approve for raise dispute bond.
+    #     :return dict: A dictionary containing the transaction hash.
+    #     """
+    #     dispute_spender = "0xfFD98c3877B8789124f02C7E8239A4b0Ef11E936"
+    #     response = self.client.WIP.approve(
+    #         spender=dispute_spender,
+    #         amount=amount,
+    #         tx_options=None
+    #     )
+    #     return {'tx_hash': response.get('tx_hash')}
+
+    # def mint_license_tokens_approve(self, amount: int) -> dict:
+    #     """
+    #     Approve a spender to use the wallet's WIP balance for license token minting.
+    #     :param amount int: The amount of WIP to approve for license token minting.
+    #     :return dict: A dictionary containing the transaction hash.
+    #     """
+    #     license_spender = "0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086"
+    #     response = self.client.WIP.approve(
+    #         spender=license_spender,
+    #         amount=amount,
+    #         tx_options=None
+    #     )
+    #     return {'tx_hash': response.get('tx_hash')}
 
     def deposit_wip(self, amount: int) -> dict:
         """
