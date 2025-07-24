@@ -59,6 +59,23 @@ Environment variables:
 14. `deposit_wip`: Wrap IP to WIP and deposit to wallet
 15. `transfer_wip`: Transfer WIP to a recipient
 
+## 🤖 Agent Workflow Requirements
+
+**IMPORTANT**: Some tools have mandatory multi-step workflows that must be followed in sequence. These are marked with "🤖 AGENT WORKFLOW" in their docstrings.
+
+### Required Workflows:
+
+**For `mint_license_tokens`:**
+1. First call `get_license_minting_fee(license_terms_id)`
+2. Then call `get_license_revenue_share(license_terms_id)`
+3. Present costs to user for confirmation
+4. Only then call `mint_license_tokens` with the retrieved values
+
+**For `mint_and_register_ip_with_terms` with custom SPG contract:**
+1. If using a custom `spg_nft_contract`, first call `get_spg_nft_contract_minting_fee_and_token(spg_nft_contract)`
+2. Present SPG contract fee information to user for confirmation
+3. Only then call `mint_and_register_ip_with_terms` with the retrieved values
+
 ### Example `mint_and_register_ip_with_terms`
 
 You can use the following parameters to test the tool:
