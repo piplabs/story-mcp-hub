@@ -282,7 +282,7 @@ def mint_and_register_ip_with_terms(
     ⚠️ CONDITIONAL WORKFLOW - READ CAREFULLY ⚠️
     
     🤖 AGENT WORKFLOW - FOLLOW THESE STEPS EXACTLY:
-    1. FIRST: If spg_nft_contract is provided, call get_spg_nft_contract_minting_fee_and_token(spg_nft_contract) to get fee info
+    1. FIRST: If spg_nft_contract is provided, call get_spg_nft_contract_minting_fee_and_token(spg_nft_contract) to get fee info. If user does not ask you fill in the spg_nft_contract, skip this step (step 1), and and set spg_nft_contract_max_minting_fee and spg_nft_contract_mint_fee_token to 0, and tell the user that the minting fee is 0 and minting fee is 0 and minting fee token is WIP.
     2. SECOND: Present the SPG contract fee information to the user for confirmation:
        "This SPG contract requires a minting fee of X wei (Y IP) using Z token. Do you want to proceed?"
     3. THIRD: If user confirms, call this function with the retrieved values as spg_nft_contract_max_minting_fee and spg_nft_contract_mint_fee_token
@@ -303,7 +303,7 @@ def mint_and_register_ip_with_terms(
         commercial_use: [Optional] Whether this is a commercial license (ask user, defaults to True)
         minting_fee: [Optional] Fee required to mint license tokens in wei (ask user, defaults to 0) 
         recipient: [Optional] recipient address (ask user if not provided, defaults to sender)
-        spg_nft_contract: [Optional] SPG NFT contract address (ask user if they want to use custom contract, defaults to network-specific default)
+        spg_nft_contract: [Optional] SPG NFT contract address (ask user, defaults to network-specific default)
         spg_nft_contract_max_minting_fee: [HIDDEN] DO NOT ask user - automatically set from get_spg_nft_contract_minting_fee_and_token()
         spg_nft_contract_mint_fee_token: [HIDDEN] DO NOT ask user - automatically set from get_spg_nft_contract_minting_fee_and_token()
 
@@ -999,6 +999,7 @@ def deposit_wip(amount: int) -> str:
         
         return (
             f"Successfully wrapped {amount_in_ip} IP tokens to WIP!"
+            f"Transaction Hash: {response.get('tx_hash')}"
         )
     except Exception as e:
         return (
