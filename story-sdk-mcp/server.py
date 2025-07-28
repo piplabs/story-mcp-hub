@@ -87,9 +87,11 @@ if story_service.ipfs_enabled:
                 f"   • Attributes: {len(attributes) if attributes else 0} attributes\n\n"
                 f"Generated Metadata:\n"
                 f"   • NFT Metadata URI: {result['nft_metadata_uri']}\n"
-                f"   • IP Metadata URI: {result['ip_metadata_uri']}\n"
-                f"   • Registration metadata for minting:\n"
-                f"{json.dumps(result['registration_metadata'], indent=2)}"
+                f"   • IP Metadata URI: {result['ip_metadata_uri']}\n\n"
+                f"Registration metadata for minting:\n"
+                f"```json\n"
+                f"{json.dumps(result['registration_metadata'], indent=2)}\n"
+                f"```\n"
             )
         except Exception as e:
             return f"Error creating metadata: {str(e)}"
