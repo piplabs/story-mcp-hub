@@ -36,9 +36,6 @@ if story_service.ipfs_enabled:
         """
         Upload an image to IPFS using Pinata API.
 
-        ⚠️ IMPORTANT: This method uploads data to external services (IPFS). 
-        Please double-check all parameters with the user and get their confirmation before proceeding.
-
         Args:
             image_data: Either bytes of image data or URL to image
 
@@ -58,9 +55,6 @@ if story_service.ipfs_enabled:
     ) -> str:
         """
         Create and upload both NFT and IP metadata to IPFS.
-
-        ⚠️ IMPORTANT: This method uploads data to external services (IPFS). 
-        Please double-check all parameters with the user and get their confirmation before proceeding.
 
         Args:
             image_uri: IPFS URI of the uploaded image
@@ -191,20 +185,6 @@ def mint_license_tokens(
     """
     Mint license tokens for a given IP and license terms.
 
-    ⚠️ MANDATORY WORKFLOW - DO NOT CALL THIS FUNCTION DIRECTLY ⚠️
-    
-    🤖 AGENT WORKFLOW - FOLLOW THESE STEPS EXACTLY:
-    1. FIRST: Call get_license_minting_fee(license_terms_id) to get the required minting fee
-    2. SECOND: Call get_license_revenue_share(license_terms_id) to get the revenue share percentage
-    3. THIRD: Present this information to the user for confirmation:
-       "This license requires a minting fee of X wei (Y IP) and has a Z% revenue share. Do you want to proceed?"
-    4. FOURTH: If user confirms, call this function with the retrieved values as max_minting_fee and max_revenue_share
-    
-    ❌ NEVER call this function without completing steps 1-3 first!
-    
-    ⚠️ IMPORTANT: This method makes blockchain transactions and spends tokens. 
-    Please double-check all parameters with the user and get their confirmation before proceeding.
-
     💰 AUTO-APPROVE: This method automatically approves the exact amount of WIP tokens needed for minting.
     The system will approve only the required fee amount to ensure the transaction succeeds.
 
@@ -279,21 +259,6 @@ def mint_and_register_ip_with_terms(
 ) -> str:
     """
     Mint an NFT, register it as an IP Asset, and attach PIL terms.
-    Automatically detects if the SPG contract requires a minting fee and handles it appropriately.
-
-    ⚠️ CONDITIONAL WORKFLOW - READ CAREFULLY ⚠️
-    
-    🤖 AGENT WORKFLOW - FOLLOW THESE STEPS EXACTLY:
-    1. FIRST: If spg_nft_contract is provided, call get_spg_nft_contract_minting_fee_and_token(spg_nft_contract) to get fee info. If user does not ask you fill in the spg_nft_contract, skip this step (step 1), and and set spg_nft_contract_max_minting_fee and spg_nft_contract_mint_fee_token to 0, and tell the user that the minting fee is 0 and minting fee is 0 and minting fee token is WIP.
-    2. SECOND: Present the SPG contract fee information to the user for confirmation:
-       "This SPG contract requires a minting fee of X wei (Y IP) using Z token. Do you want to proceed?"
-    3. THIRD: If user confirms, call this function with the retrieved values as spg_nft_contract_max_minting_fee and spg_nft_contract_mint_fee_token
-    4. NOTE: If spg_nft_contract is None, the system will use the default SPG contract (no need to check fees)
-    
-    ❌ NEVER call this function with a custom spg_nft_contract without completing steps 1-2 first!
-
-    ⚠️ IMPORTANT: This method makes blockchain transactions and spends tokens. 
-    Please double-check all parameters with the user and get their confirmation before proceeding.
 
     💰 AUTO-APPROVE: This method automatically approves the exact amount of tokens needed for minting.
     The system will approve only the required fee amount to ensure the transaction succeeds.
@@ -369,9 +334,6 @@ def create_spg_nft_collection(
     """
     Create a new SPG NFT collection that can be used for minting and registering IP assets.
 
-    ⚠️ IMPORTANT: This method makes blockchain transactions and creates contracts. 
-    Please double-check all parameters with the user and get their confirmation before proceeding.
-
     Args:
         name: Name of the NFT collection
         symbol: Symbol for the NFT collection
@@ -429,8 +391,6 @@ def create_spg_nft_collection(
 def get_spg_nft_contract_minting_fee_and_token(spg_nft_contract: str) -> str:
     """
     Get the minting fee required by an SPG NFT contract.
-
-    💡 USAGE: This is typically called BEFORE mint_and_register_ip_with_terms() to inform the user about SPG contract costs.
 
     Args:
         spg_nft_contract: The address of the SPG NFT contract
@@ -598,9 +558,6 @@ def register(
     """
     Register an NFT as IP, creating a corresponding IP record.
 
-    ⚠️ IMPORTANT: This method makes blockchain transactions. 
-    Please double-check all parameters with the user and get their confirmation before proceeding.
-
     Args:
         nft_contract: The address of the NFT contract
         token_id: The token identifier of the NFT
@@ -649,9 +606,6 @@ def register(
 def attach_license_terms(ip_id: str, license_terms_id: int, license_template: Optional[str] = None) -> str:
     """
     Attaches license terms to an IP.
-
-    ⚠️ IMPORTANT: This method makes blockchain transactions. 
-    Please double-check all parameters with the user and get their confirmation before proceeding.
 
     Args:
         ip_id: The address of the IP to which the license terms are attached
@@ -734,9 +688,6 @@ def pay_royalty_on_behalf(
     """
     Allows the function caller to pay royalties to the receiver IP asset on behalf of the payer IP asset.
 
-    ⚠️ IMPORTANT: This method makes blockchain transactions and spends tokens. 
-    Please double-check all parameters with the user and get their confirmation before proceeding.
-
     💰 AUTO-APPROVE: This method automatically approves the exact amount of tokens needed for paying royalties.
     The system will approve only the required amount to ensure the transaction succeeds.
 
@@ -782,9 +733,6 @@ def claim_all_revenue(
 ) -> str:
     """
     Claims all revenue from the child IPs of an ancestor IP, then optionally transfers tokens to the claimer.
-    
-    ⚠️ IMPORTANT: This method makes blockchain transactions and claims tokens. 
-    Please double-check all parameters with the user and get their confirmation before proceeding.
     
     Args:
         ancestor_ip_id: The ancestor IP ID
@@ -838,10 +786,7 @@ def raise_dispute(
     liveness: int = 30
 ) -> str:
     """
-    ⚖️ Raises a dispute against an IP asset using the Story Protocol SDK.
-    
-    ⚠️ IMPORTANT: This method makes blockchain transactions and spends tokens. 
-    Please double-check all parameters with the user and get their confirmation before proceeding.
+    Raises a dispute against an IP asset using the Story Protocol SDK.
     
     💰 AUTO-APPROVE: This method automatically approves the exact amount of WIP tokens needed for the dispute bond.
     The system will approve only the required bond amount to ensure the transaction succeeds.
@@ -864,11 +809,6 @@ def raise_dispute(
     💡 Bond Amount Format:
     - Use wei (1 IP = 1,000,000,000,000,000,000 wei)
     - Example: 100000000000000000 wei = 0.1 IP
-    
-    💡 Liveness Period:
-    - Specify in days (30-365)
-    - System automatically converts to seconds for blockchain
-    - Example: 30 days = 2,592,000 seconds
     
     ⚠️ IMPORTANT: Tags must be whitelisted by protocol governance. Use EXACT tag strings above.
     """
@@ -989,11 +929,10 @@ def deposit_wip(amount: int) -> str:
     """
     Wraps the selected amount of IP to WIP and deposits to the wallet.
     
-    ⚠️ IMPORTANT: This method makes blockchain transactions and wraps tokens. 
-    Please double-check all parameters with the user and get their confirmation before proceeding.
-    
-    :param amount int: The amount of IP to wrap in wei.
-    :return str: User-friendly summary of the wrapping process and results.
+    Args:
+        amount int: The amount of IP to wrap in wei.
+    Returns:
+        str: User-friendly summary of the wrapping process and results.
     """
     try:
         response = story_service.deposit_wip(amount=amount)
@@ -1139,12 +1078,11 @@ def transfer_wip(to: str, amount: int) -> str:
     """
     Transfers `amount` of WIP to a recipient `to`.
     
-    ⚠️ IMPORTANT: This method makes blockchain transactions and transfers tokens. 
-    Please double-check all parameters with the user and get their confirmation before proceeding.
-    
-    :param to str: The address of the recipient.
-    :param amount int: The amount of WIP to transfer in wei.
-    :return str: User-friendly summary of the transfer process and results.
+    Args:
+        to str: The address of the recipient.
+        amount int: The amount of WIP to transfer in wei.
+    Returns:
+        str: User-friendly summary of the transfer process and results.
     """
     try:
         response = story_service.transfer_wip(to=to, amount=amount)
