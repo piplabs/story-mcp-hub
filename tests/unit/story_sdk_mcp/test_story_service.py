@@ -852,3 +852,149 @@ class TestStoryService:
             tx_options=None
         )
         assert result["tx_hash"] == "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+
+    def test_predict_minting_license_fee(self, story_service, mock_story_client):
+        """Test predicting minting license fee with various parameter combinations"""
+        # Test case 1: Basic call with required parameters only
+        mock_story_client.License.predict_minting_license_fee.return_value = {
+            "currencyToken": "0x1514000000000000000000000000000000000000",
+            "tokenAmount": 1000000000000000000
+        }
+
+        result = story_service.predict_minting_license_fee(
+            licensor_ip_id=SAMPLE_IP_ID,
+            license_terms_id=SAMPLE_LICENSE_TERMS_ID,
+            amount=1
+        )
+
+        # Verify the client was called correctly
+        mock_story_client.License.predict_minting_license_fee.assert_called_with(
+            licensor_ip_id=SAMPLE_IP_ID,
+            license_terms_id=SAMPLE_LICENSE_TERMS_ID,
+            amount=1,
+            license_template=None,
+            receiver=None,
+            tx_options=None
+        )
+
+        # Verify the result (should return SDK response directly)
+        assert result["currencyToken"] == "0x1514000000000000000000000000000000000000"
+        assert result["tokenAmount"] == 1000000000000000000
+
+        # Test case 2: Call with all optional parameters
+        mock_story_client.License.predict_minting_license_fee.reset_mock()
+        mock_story_client.License.predict_minting_license_fee.return_value = {
+            "currencyToken": "0x2514000000000000000000000000000000000000",
+            "tokenAmount": 2000000000000000000
+        }
+
+        custom_template = "0x1234567890123456789012345678901234567890"
+        custom_receiver = "0xabcd1234abcd1234abcd1234abcd1234abcd1234"
+        tx_options = {"gasLimit": 200000}
+
+        result = story_service.predict_minting_license_fee(
+            licensor_ip_id=SAMPLE_IP_ID,
+            license_terms_id=SAMPLE_LICENSE_TERMS_ID,
+            amount=5,
+            license_template=custom_template,
+            receiver=custom_receiver,
+            tx_options=tx_options
+        )
+
+        # Verify the client was called with all parameters
+        mock_story_client.License.predict_minting_license_fee.assert_called_with(
+            licensor_ip_id=SAMPLE_IP_ID,
+            license_terms_id=SAMPLE_LICENSE_TERMS_ID,
+            amount=5,
+            license_template=custom_template,
+            receiver=custom_receiver,
+            tx_options=tx_options
+        )
+
+        # Verify the result (should return SDK response directly)
+        assert result["currencyToken"] == "0x2514000000000000000000000000000000000000"
+        assert result["tokenAmount"] == 2000000000000000000
+
+        # Test case 3: Call with different amounts and license terms
+        mock_story_client.License.predict_minting_license_fee.reset_mock()
+        mock_story_client.License.predict_minting_license_fee.return_value = {
+            "currencyToken": "0x3514000000000000000000000000000000000000",
+            "tokenAmount": 5000000000000000000
+        }
+
+        result = story_service.predict_minting_license_fee(
+            licensor_ip_id="0x9876543210987654321098765432109876543210",
+            license_terms_id=99,
+            amount=10
+        )
+
+        # Verify the client was called correctly
+        mock_story_client.License.predict_minting_license_fee.assert_called_with(
+            licensor_ip_id="0x9876543210987654321098765432109876543210",
+            license_terms_id=99,
+            amount=10,
+            license_template=None,
+            receiver=None,
+            tx_options=None
+        )
+
+        # Verify the result (should return SDK response directly)
+        assert result["currencyToken"] == "0x3514000000000000000000000000000000000000"
+        assert result["tokenAmount"] == 5000000000000000000
+
+        # Test case 4: Response with missing fields (edge case)
+        mock_story_client.License.predict_minting_license_fee.reset_mock()
+        mock_story_client.License.predict_minting_license_fee.return_value = {
+            "currencyToken": "0x4514000000000000000000000000000000000000"
+            # Missing tokenAmount
+        }
+
+        result = story_service.predict_minting_license_fee(
+            licensor_ip_id=SAMPLE_IP_ID,
+            license_terms_id=SAMPLE_LICENSE_TERMS_ID,
+            amount=1
+        )
+
+        # Verify the response is returned as-is (no transformation)
+        assert result["currencyToken"] == "0x4514000000000000000000000000000000000000"
+        assert "tokenAmount" not in result
+
+        # Test case 5: Empty response (edge case)
+        mock_story_client.License.predict_minting_license_fee.reset_mock()
+        mock_story_client.License.predict_minting_license_fee.return_value = {}
+
+        result = story_service.predict_minting_license_fee(
+            licensor_ip_id=SAMPLE_IP_ID,
+            license_terms_id=SAMPLE_LICENSE_TERMS_ID,
+            amount=1
+        )
+
+        # Verify the empty response is returned as-is
+        assert result == {}
+
+        # Test case 6: Large amounts
+        mock_story_client.License.predict_minting_license_fee.reset_mock()
+        mock_story_client.License.predict_minting_license_fee.return_value = {
+            "currencyToken": "0x5514000000000000000000000000000000000000",
+            "tokenAmount": 1000000000000000000000  # Large amount
+        }
+
+        result = story_service.predict_minting_license_fee(
+            licensor_ip_id=SAMPLE_IP_ID,
+            license_terms_id=SAMPLE_LICENSE_TERMS_ID,
+            amount=1000
+        )
+
+        # Verify the client was called correctly with large amount
+        mock_story_client.License.predict_minting_license_fee.assert_called_with(
+            licensor_ip_id=SAMPLE_IP_ID,
+            license_terms_id=SAMPLE_LICENSE_TERMS_ID,
+            amount=1000,
+            license_template=None,
+            receiver=None,
+            tx_options=None
+        )
+
+        # Verify the result with large token amount (should return SDK response directly)
+        assert result["currencyToken"] == "0x5514000000000000000000000000000000000000"
+        assert result["tokenAmount"] == 1000000000000000000000

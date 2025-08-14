@@ -1170,3 +1170,105 @@ class TestServerFunctions:
         assert "100000 wei" in result
         assert "Token at" in result
         self.story_service.get_spg_nft_contract_minting_fee_and_token.assert_called_once_with("0x123")
+
+    def test_predict_minting_license_fee(self, setup_mocks):
+        """Test the predict_minting_license_fee function."""
+        server_module, add_tool = setup_mocks
+        
+        # Create the tool function we want to test
+        def predict_minting_license_fee(
+            licensor_ip_id,
+            license_terms_id,
+            amount,
+            license_template=None,
+            receiver=None,
+            tx_options=None
+        ):
+            """Pre-compute the minting license fee for the given IP, license terms and amount."""
+            try:
+                response = self.story_service.predict_minting_license_fee(
+                    licensor_ip_id=licensor_ip_id,
+                    license_terms_id=license_terms_id,
+                    amount=amount,
+                    license_template=license_template,
+                    receiver=receiver,
+                    tx_options=tx_options
+                )
+                return {
+                    "currency_token": response.get("currency"),
+                    "token_amount": response.get("amount")
+                }
+            except Exception as e:
+                return f"Error predicting minting license fee: {str(e)}"
+        
+        # Register it with our mock MCP
+        predict_minting_license_fee = add_tool('predict_minting_license_fee', predict_minting_license_fee)
+        
+        # Mock the service method
+        self.story_service.predict_minting_license_fee = Mock(return_value={
+            "currency": "0x1514000000000000000000000000000000000000",
+            "amount": 1000000000000000000
+        })
+        
+        # Call the function with basic parameters
+        result = predict_minting_license_fee(
+            licensor_ip_id="0x123",
+            license_terms_id=42,
+            amount=5
+        )
+        
+        # Assertions
+        assert isinstance(result, dict)
+        assert result["currency_token"] == "0x1514000000000000000000000000000000000000"
+        assert result["token_amount"] == 1000000000000000000
+        self.story_service.predict_minting_license_fee.assert_called_once_with(
+            licensor_ip_id="0x123",
+            license_terms_id=42,
+            amount=5,
+            license_template=None,
+            receiver=None,
+            tx_options=None
+        )
+        
+        # Test with all parameters
+        self.story_service.predict_minting_license_fee.reset_mock()
+        self.story_service.predict_minting_license_fee.return_value = {
+            "currency": "0x2514000000000000000000000000000000000000",
+            "amount": 2000000000000000000
+        }
+        
+        result = predict_minting_license_fee(
+            licensor_ip_id="0x456",
+            license_terms_id=99,
+            amount=10,
+            license_template="0xtemplate",
+            receiver="0xreceiver",
+            tx_options={"gasLimit": 200000}
+        )
+        
+        # Verify the result
+        assert result["currency_token"] == "0x2514000000000000000000000000000000000000"
+        assert result["token_amount"] == 2000000000000000000
+        self.story_service.predict_minting_license_fee.assert_called_once_with(
+            licensor_ip_id="0x456",
+            license_terms_id=99,
+            amount=10,
+            license_template="0xtemplate",
+            receiver="0xreceiver",
+            tx_options={"gasLimit": 200000}
+        )
+        
+        # Test error handling
+        self.story_service.predict_minting_license_fee.reset_mock()
+        self.story_service.predict_minting_license_fee.side_effect = Exception("Service error")
+        
+        result = predict_minting_license_fee(
+            licensor_ip_id="0x789",
+            license_terms_id=1,
+            amount=1
+        )
+        
+        # Verify error is handled
+        assert isinstance(result, str)
+        assert "Error predicting minting license fee" in result
+        assert "Service error" in result
