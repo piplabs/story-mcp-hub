@@ -1200,6 +1200,44 @@ def transfer_wip(to: str, amount: int) -> str:
 #     except Exception as e:
 #         return f"Error registering non-commercial PIL: {str(e)}"
 
+@mcp.tool()
+def predict_minting_license_fee(
+        licensor_ip_id: str,
+        license_terms_id: int,
+        amount: int,
+        license_template: Optional[str] = None,
+        receiver: Optional[str] = None,
+        tx_options: Optional[dict] = None,
+    ) -> dict:
+        """
+        Pre-compute the minting license fee for the given IP, license terms and amount.
+        
+        Args:
+            licensor_ip_id str: The IP ID of the licensor.
+            license_terms_id int: The ID of the license terms.
+            amount int: The amount of license tokens to mint.
+            license_template str: [Optional] The address of the license template, default is Programmable IP License.
+            receiver str: [Optional] The address of the receiver, default is your wallet address.
+            tx_options dict: [Optional] Transaction options.
+        Returns:
+            dict: A dictionary containing the currency token and token amount.
+        """
+        try:
+            response = story_service.predict_minting_license_fee(
+                licensor_ip_id=licensor_ip_id,
+                license_terms_id=license_terms_id,
+                amount=amount,
+                license_template=license_template,
+                receiver=receiver,
+                tx_options=tx_options
+            )
+            return {
+                "currency_token": response.get("currency"),
+                "token_amount": response.get("amount")
+            }
+        except Exception as e:
+            return f"Error predicting minting license fee: {str(e)}"
+        
 
 
 if __name__ == "__main__":

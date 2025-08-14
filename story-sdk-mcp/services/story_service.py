@@ -1676,4 +1676,32 @@ class StoryService:
     def _get_license_terms_royalty_policy_address(self, selected_license_terms_id: int) -> str:
         return self.client.License.get_license_terms(selected_license_terms_id).get('royaltyPolicy')
     
-    
+    def predict_minting_license_fee(
+        self,
+        licensor_ip_id: str,
+        license_terms_id: int,
+        amount: int,
+        license_template: str | None = None,
+        receiver: str | None = None,
+        tx_options: dict | None = None,
+    ) -> dict:
+        """
+        Pre-compute the minting license fee for the given IP and license terms.
+
+        :param licensor_ip_id str: The IP ID of the licensor.
+        :param license_terms_id int: The ID of the license terms.
+        :param amount int: The amount of license tokens to mint.
+        :param license_template str: [Optional] The address of the license template, default is Programmable IP License.
+        :param receiver str: [Optional] The address of the receiver, default is your wallet address.
+        :param tx_options dict: [Optional] Transaction options.
+        :return dict: A dictionary containing the currency token and token amount.
+        """
+        response = self.client.License.predict_minting_license_fee(
+            licensor_ip_id=licensor_ip_id,
+            license_terms_id=license_terms_id,
+            amount=amount,
+            license_template=license_template,
+            receiver=receiver,
+            tx_options=tx_options
+        )
+        return response
