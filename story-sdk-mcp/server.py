@@ -6,6 +6,9 @@ from typing import Union, Optional
 import json
 import sys
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Add the parent directory to the Python path so we can import utils
 sys.path.append(str(Path(__file__).parent.parent))
@@ -95,6 +98,7 @@ if story_service.ipfs_enabled:
 def get_license_terms(license_terms_id: int) -> str:
     """Get the license terms for a specific ID."""
     try:
+        logger.info(f"fuck youuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu!")
         terms = story_service.get_license_terms(license_terms_id)
         
         return (
