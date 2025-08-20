@@ -98,7 +98,6 @@ if story_service.ipfs_enabled:
 def get_license_terms(license_terms_id: int) -> str:
     """Get the license terms for a specific ID."""
     try:
-        logger.info(f"fuck youuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu!")
         terms = story_service.get_license_terms(license_terms_id)
         
         return (
@@ -1235,10 +1234,10 @@ def predict_minting_license_fee(
                 receiver=receiver,
                 tx_options=tx_options
             )
-            return {
-                "currency_token": response.get("currency"),
-                "token_amount": response.get("amount")
-            }
+            return (
+                f"currency_token: {response.get('currency')}\n"
+                f"token_amount: {response.get('amount')}"
+            )
         except Exception as e:
             return f"Error predicting minting license fee: {str(e)}"
         

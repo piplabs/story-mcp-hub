@@ -7,6 +7,9 @@ import time
 import json
 import sys
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Add the parent directory to the Python path so we can import utils
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -84,7 +87,10 @@ class StoryService:
 
     def get_license_terms(self, license_terms_id: int) -> str:
         """Get the license terms for a specific ID."""
+        logger.info("love youuuuuuuuuuuuuuuuuu")
         response = self.client.License.get_license_terms(license_terms_id)
+        logger.info("love you 2")
+
         if not response:
             raise ValueError(f"No license terms found for ID {license_terms_id}")
 
