@@ -96,7 +96,15 @@ if story_service.ipfs_enabled:
 
 @mcp.tool()
 def get_license_terms(license_terms_id: int) -> str:
-    """Get the license terms for a specific ID."""
+    """Get the license terms for a specific ID.
+
+    Args:
+        license_terms_id: The ID of the license terms
+
+    Returns:
+        str: Information about the license terms
+    """
+
     try:
         terms = story_service.get_license_terms(license_terms_id)
         
@@ -107,16 +115,14 @@ def get_license_terms(license_terms_id: int) -> str:
             f"License Terms Details:\n"
             f"   • Transferable: {terms.get('transferable', 'N/A')}\n"
             f"   • Royalty Policy: {terms.get('royaltyPolicy', 'N/A')}\n"
-            f"   • Default Minting Fee: {terms.get('defaultMintingFee', 'N/A')} wei\n"
-            f"   • Expiration: {terms.get('expiration', 'N/A')}\n"
+            f"   • Default Minting Fee: {terms.get('defaultMintingFee', 'N/A')} wei \n"
             f"   • Commercial Use: {terms.get('commercialUse', 'N/A')}\n"
             f"   • Commercial Attribution: {terms.get('commercialAttribution', 'N/A')}\n"
             f"   • Commercial Revenue Share: {terms.get('commercialRevShare', 'N/A')}\n"
             f"   • Derivatives Allowed: {terms.get('derivativesAllowed', 'N/A')}\n"
             f"   • Derivatives Attribution: {terms.get('derivativesAttribution', 'N/A')}\n"
             f"   • Derivatives Reciprocal: {terms.get('derivativesReciprocal', 'N/A')}\n"
-            f"   • Currency: {terms.get('currency', 'N/A')}\n"
-            f"   • URI: {terms.get('uri', 'N/A')}"
+            f"   • Currency: {terms.get('currency', 'N/A')}"
         )
     except Exception as e:
         return f"❌ Error retrieving license terms for ID {license_terms_id}: {str(e)}"
