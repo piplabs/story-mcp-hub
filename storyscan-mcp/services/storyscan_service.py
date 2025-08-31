@@ -117,7 +117,7 @@ class TokenInfo(TypedDict):
     total_supply: str
 
 
-class AddressOverview(TypedDict):
+class AddressOverview(TypedDict, total=False):
     hash: str
     coin_balance: str
     is_contract: bool
@@ -133,7 +133,7 @@ class AddressOverview(TypedDict):
     creation_transaction_hash: Optional[str]
     creator_address_hash: Optional[str]
     ens_domain_name: Optional[str]
-    has_decompiled_code: bool
+    has_decompiled_code: Optional[bool]
     has_logs: bool
     has_validated_blocks: bool
     implementations: List[Any]
@@ -324,14 +324,14 @@ class StoryscanService:
             return AddressOverview(
                 hash=data["hash"],
                 coin_balance=data["coin_balance"],  # Keep the raw balance
-                is_contract=data["is_contract"],
+                is_contract=data.get("is_contract", False),
                 token=data.get("token"),
-                has_tokens=data["has_tokens"],
-                has_token_transfers=data["has_token_transfers"],
-                has_beacon_chain_withdrawals=data["has_beacon_chain_withdrawals"],
-                private_tags=data["private_tags"],
-                public_tags=data["public_tags"],
-                watchlist_names=data["watchlist_names"],
+                has_tokens=data.get("has_tokens", False),
+                has_token_transfers=data.get("has_token_transfers", False),
+                has_beacon_chain_withdrawals=data.get("has_beacon_chain_withdrawals", False),
+                private_tags=data.get("private_tags", []),
+                public_tags=data.get("public_tags", []),
+                watchlist_names=data.get("watchlist_names", []),
                 exchange_rate=data.get("exchange_rate"),
                 block_number_balance_updated_at=data.get(
                     "block_number_balance_updated_at"
@@ -339,12 +339,12 @@ class StoryscanService:
                 creation_transaction_hash=data.get("creation_transaction_hash"),
                 creator_address_hash=data.get("creator_address_hash"),
                 ens_domain_name=data.get("ens_domain_name"),
-                has_decompiled_code=data["has_decompiled_code"],
-                has_logs=data["has_logs"],
-                has_validated_blocks=data["has_validated_blocks"],
-                implementations=data["implementations"],
-                is_scam=data["is_scam"],
-                is_verified=data["is_verified"],
+                has_decompiled_code=data.get("has_decompiled_code", False),
+                has_logs=data.get("has_logs", False),
+                has_validated_blocks=data.get("has_validated_blocks", False),
+                implementations=data.get("implementations", []),
+                is_scam=data.get("is_scam", False),
+                is_verified=data.get("is_verified", False),
                 metadata=data.get("metadata"),
                 name=data.get("name"),
                 proxy_type=data.get("proxy_type"),

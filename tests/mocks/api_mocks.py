@@ -110,3 +110,52 @@ def mock_storyscan_blockchain_stats() -> Dict[str, Any]:
         "total_gas_used": "10000000000",
         "static_gas_price": "20"
     }
+
+def mock_storyscan_token_holdings_response() -> Dict[str, Any]:
+    """Generate a mock response for token holdings endpoint"""
+    return {
+        "items": [
+            {
+                "token": {
+                    "name": "Story Token",
+                    "symbol": "STORY",
+                    "decimals": "18",
+                    "type": "ERC-20",
+                    "address_hash": "0xabcdef1234567890abcdef1234567890abcdef1234",
+                    "holders_count": "1000",
+                    "total_supply": "1000000000000000000000000",
+                    "exchange_rate": "0.5"
+                },
+                "value": "10000000000000000000"  # 10 STORY
+            }
+        ]
+    }
+
+def mock_storyscan_nft_holdings_response() -> Dict[str, Any]:
+    """Generate a mock response for NFT holdings endpoint"""
+    return {
+        "items": [
+            {
+                "token": {
+                    "name": "Story NFT Collection",
+                    "symbol": "SNFT",
+                    "type": "ERC-721",
+                    "address_hash": "0xabcdef1234567890abcdef1234567890abcdef1234",
+                    "holders_count": "100",
+                    "total_supply": "1000"
+                },
+                "id": "42",
+                "token_type": "ERC-721",
+                "value": "1",
+                "image_url": "ipfs://QmXyZ123456789",
+                "metadata": {
+                    "name": "Story NFT #42",
+                    "description": "A test NFT for Story Protocol",
+                    "attributes": [
+                        {"trait_type": "Rarity", "value": "Legendary"},
+                        {"trait_type": "Type", "value": "Artwork"}
+                    ]
+                }
+            }
+        ]
+    }

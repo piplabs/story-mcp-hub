@@ -362,11 +362,11 @@ def get_address_overview(address: str):
         # Add activity indicators
         result += f"\n\nActivity Indicators:"
         result += f"\nHas Tokens: {overview['has_tokens']}"
-        result += f"\nHas Token Transfers: {overview['has_token_transfers']}"
-        result += f"\nHas Logs: {overview['has_logs']}"
-        result += f"\nHas Beacon Chain Withdrawals: {overview['has_beacon_chain_withdrawals']}"
-        result += f"\nHas Validated Blocks: {overview['has_validated_blocks']}"
-        result += f"\nHas Decompiled Code: {overview['has_decompiled_code']}"
+        result += f"\nHas Token Transfers: {overview.get('has_token_transfers', 'Unknown')}"
+        result += f"\nHas Logs: {overview.get('has_logs', 'Unknown')}"
+        result += f"\nHas Beacon Chain Withdrawals: {overview.get('has_beacon_chain_withdrawals', 'Unknown')}"
+        result += f"\nHas Validated Blocks: {overview.get('has_validated_blocks', 'Unknown')}"
+        result += f"\nHas Decompiled Code: {overview.get('has_decompiled_code', 'Unknown')}"
 
         # Add proxy information if available
         if overview.get("proxy_type"):
@@ -463,11 +463,19 @@ def get_token_holdings(address: str):
             token = holding["token"]
             raw_value = holding["value"]
 
+            # Normalize common token fields from Storyscan
+            token_address = token.get("address") or token.get("address_hash") or "Unknown"
+            token_symbol = token.get("symbol", "UNKNOWN")
+            token_name = token.get("name", "Unknown")
+            token_type = token.get("type", "Unknown")
+            token_decimals = token.get("decimals")
+            token_holders = token.get("holders") or token.get("holders_count")
+
             # Get formatted value using a cleaner approach
             try:
                 decimals = (
-                    int(token.get("decimals"))
-                    if token.get("decimals") and token["decimals"] != "null"
+                    int(token_decimals)
+                    if token_decimals and token_decimals != "null"
                     else None
                 )
                 formatted_value = (
@@ -489,19 +497,19 @@ def get_token_holdings(address: str):
                     pass
 
             # Create the display string directly
-            display_value = f"{formatted_value} {token['symbol']}{usd_display}"
+            display_value = f"{formatted_value} {token_symbol}{usd_display}"
 
             formatted_holding = (
-                f"Token: {token['name']} ({token['symbol']})\n"
+                f"Token: {token_name} ({token_symbol})\n"
                 f"Value: {display_value}\n"
-                f"Decimals: {token.get('decimals', 'Unknown')}\n"
-                f"Address: {token['address']}\n"
-                f"Type: {token['type']}"
+                f"Decimals: {token_decimals if token_decimals is not None else 'Unknown'}\n"
+                f"Address: {token_address}\n"
+                f"Type: {token_type}"
             )
 
             # Add holders count if available
-            if token.get("holders"):
-                formatted_holding += f"\nHolders: {token['holders']}"
+            if token_holders:
+                formatted_holding += f"\nHolders: {token_holders}"
 
             # Add total supply if available
             if token.get("total_supply"):
@@ -534,18 +542,24 @@ def get_nft_holdings(address: str):
         for nft in nft_holdings["items"]:
             token = nft["token"]
 
+            # Normalize token fields
+            token_address = token.get("address") or token.get("address_hash") or "Unknown"
+            token_symbol = token.get("symbol", "UNKNOWN")
+            token_name = token.get("name", "Unknown")
+            token_holders = token.get("holders") or token.get("holders_count")
+
             # Basic NFT information
             formatted_holding = (
-                f"Collection: {token['name']} ({token['symbol']})\n"
-                f"Token ID: {nft['id']}\n"
-                f"Token Type: {nft['token_type']}\n"
-                f"Value: {nft['value']} (smallest unit)\n"
-                f"Contract Address: {token['address']}\n"
+                f"Collection: {token_name} ({token_symbol})\n"
+                f"Token ID: {nft.get('id', 'Unknown')}\n"
+                f"Token Type: {nft.get('token_type', 'Unknown')}\n"
+                f"Value: {nft.get('value', 'Unknown')} (smallest unit)\n"
+                f"Contract Address: {token_address}\n"
             )
 
             # Add token statistics if available
-            if token.get("holders"):
-                formatted_holding += f"Collection Holders: {token['holders']}\n"
+            if token_holders:
+                formatted_holding += f"Collection Holders: {token_holders}\n"
 
             if token.get("total_supply"):
                 formatted_holding += (

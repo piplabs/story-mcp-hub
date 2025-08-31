@@ -217,7 +217,7 @@ def mock_address_overview_response():
         "has_logs": True,
         "has_beacon_chain_withdrawals": False,
         "has_validated_blocks": False,
-        "has_decompiled_code": False,
+        "has_decompiled_code": False,  # This field may be missing in actual API responses
         "public_tags": [{"display_name": "Alice"}],
         "private_tags": [],
         "watchlist_names": []
