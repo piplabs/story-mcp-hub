@@ -585,11 +585,11 @@ class StoryService:
                 else self.account.address
             )
 
-            # Use default SPG NFT contract if none provided
+            # Use default SPG NFT contract if none provided∏
             if spg_nft_contract is None:
                 spg_nft_contract = self.contracts["SPG_NFT"]
             
-            fee_info = self.get_spg_nft_contract_minting_fee_and_token(spg_nft_contract)
+            fee_info = self.get_spg_nft_minting_token(spg_nft_contract)
             required_fee = fee_info['mint_fee']
             mint_fee_token = fee_info['mint_fee_token']
 
@@ -933,7 +933,7 @@ class StoryService:
 
     
 
-    def get_spg_nft_contract_minting_fee_and_token(self, spg_nft_contract: str) -> dict:
+    def get_spg_nft_minting_token(self, spg_nft_contract: str) -> dict:
         """
         Get the minting fee required by an SPG NFT contract.
         

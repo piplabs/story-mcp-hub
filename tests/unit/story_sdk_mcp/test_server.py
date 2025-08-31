@@ -1120,15 +1120,15 @@ class TestServerFunctions:
             owner=None
         )
     
-    def test_get_spg_nft_contract_minting_fee_and_token(self, setup_mocks):
-        """Test the get_spg_nft_contract_minting_fee_and_token function."""
+    def test_get_spg_nft_minting_token(self, setup_mocks):
+        """Test the get_spg_nft_minting_token function."""
         server_module, add_tool = setup_mocks
         
         # Create the tool function we want to test
-        def get_spg_nft_contract_minting_fee_and_token(spg_nft_contract):
+        def get_spg_nft_minting_token(spg_nft_contract):
             """Get the minting fee required by an SPG NFT contract."""
             try:
-                fee_info = self.story_service.get_spg_nft_contract_minting_fee_and_token(spg_nft_contract)
+                fee_info = self.story_service.get_spg_nft_minting_token(spg_nft_contract)
                 
                 fee_amount = fee_info['mint_fee']
                 fee_token = fee_info['mint_fee_token']
@@ -1154,22 +1154,22 @@ class TestServerFunctions:
                 return f"Error getting SPG minting fee: {str(e)}"
                 
         # Register it with our mock MCP
-        get_spg_nft_contract_minting_fee_and_token = add_tool('get_spg_nft_contract_minting_fee_and_token', get_spg_nft_contract_minting_fee_and_token)
+        get_spg_nft_minting_token = add_tool('get_spg_nft_minting_token', get_spg_nft_minting_token)
         
         # Mock the service method
-        self.story_service.get_spg_nft_contract_minting_fee_and_token = Mock(return_value={
+        self.story_service.get_spg_nft_minting_token = Mock(return_value={
             'mint_fee': 100000,
             'mint_fee_token': "0x1514000000000000000000000000000000000000"
         })
         
         # Call the function
-        result = get_spg_nft_contract_minting_fee_and_token("0x123")
+        result = get_spg_nft_minting_token("0x123")
         
         # Assertions
         assert "SPG NFT Minting Fee Information" in result
         assert "100000 wei" in result
         assert "Token at" in result
-        self.story_service.get_spg_nft_contract_minting_fee_and_token.assert_called_once_with("0x123")
+        self.story_service.get_spg_nft_minting_token.assert_called_once_with("0x123")
 
     def test_predict_minting_license_fee(self, setup_mocks):
         """Test the predict_minting_license_fee function."""

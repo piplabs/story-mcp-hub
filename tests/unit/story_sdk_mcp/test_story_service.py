@@ -310,8 +310,8 @@ class TestStoryService:
         # Setup mock response
         mock_story_client.IPAsset.mint_and_register_ip_asset_with_pil_terms.return_value = get_mock_mint_and_register_response()
 
-        # Mock get_spg_nft_contract_minting_fee to return a fee
-        story_service.get_spg_nft_contract_minting_fee_and_token = Mock(return_value={
+        # Mock get_spg_nft_minting_token to return a fee
+        story_service.get_spg_nft_minting_token = Mock(return_value={
             'mint_fee': 100000,
             'mint_fee_token': "0x1514000000000000000000000000000000000000"
         })
@@ -817,13 +817,13 @@ class TestStoryService:
         assert result["tx_hash"] == "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
         assert result["spg_nft_contract"] == SAMPLE_NFT_CONTRACT
 
-    def test_get_spg_nft_contract_minting_fee_and_token(self, story_service):
+    def test_get_spg_nft_minting_token(self, story_service):
         """Test getting SPG NFT contract minting fee and token"""
         # Mock the client method
         story_service.client.NFTClient.get_mint_fee = Mock(return_value=100000)
         story_service.client.NFTClient.get_mint_fee_token = Mock(return_value="0x1514000000000000000000000000000000000000")
         
-        result = story_service.get_spg_nft_contract_minting_fee_and_token(SAMPLE_NFT_CONTRACT)
+        result = story_service.get_spg_nft_minting_token(SAMPLE_NFT_CONTRACT)
         
         # Verify the result
         assert result['mint_fee'] == 100000

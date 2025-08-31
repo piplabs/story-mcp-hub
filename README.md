@@ -101,7 +101,7 @@ Provides tools for interacting with Story Protocol's Python SDK.
 - `upload_image_to_ipfs`: Upload an image to IPFS and return the URI (requires PINATA_JWT)
 - `create_ip_metadata`: Create NFT metadata for a specific image URI (requires PINATA_JWT)
 - `create_spg_nft_collection`: Create a new SPG NFT collection
-- `get_spg_nft_contract_minting_fee`: Get the minting fee for an SPG NFT contract
+- `get_spg_nft_minting_token`: Get the minting fee for an SPG NFT contract
 - `pay_royalty_on_behalf`: Pay royalty on behalf of an IP
 - `claim_all_revenue`: Claim all revenue from an IP
 - `raise_dispute`: Raise a dispute on an IP

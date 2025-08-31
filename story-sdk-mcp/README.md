@@ -46,7 +46,7 @@ Environment variables:
 
 ### SPG NFT Collection Tools
 9. `create_spg_nft_collection`: Create a new SPG NFT collection for minting and registering IP assets
-10. `get_spg_nft_contract_minting_fee`: Get the minting fee for an SPG NFT contract
+10. `get_spg_nft_minting_token`: Get the minting fee for an SPG NFT contract
 
 ### Royalty Management Tools
 11. `pay_royalty_on_behalf`: Pay royalty on behalf of an IP
@@ -72,7 +72,7 @@ Environment variables:
 4. Only then call `mint_license_tokens` with the retrieved values
 
 **For `mint_and_register_ip_with_terms` with custom SPG contract:**
-1. If using a custom `spg_nft_contract`, first call `get_spg_nft_contract_minting_fee_and_token(spg_nft_contract)`
+1. If using a custom `spg_nft_contract`, first call `get_spg_nft_minting_token(spg_nft_contract)`
 2. Present SPG contract fee information to user for confirmation
 3. Only then call `mint_and_register_ip_with_terms` with the retrieved values
 

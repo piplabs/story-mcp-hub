@@ -280,8 +280,8 @@ def mint_and_register_ip_with_terms(
         minting_fee: [Optional] Fee required to mint license tokens in wei (ask user, defaults to 0) 
         recipient: [Optional] recipient address (ask user if not provided, defaults to sender)
         spg_nft_contract: [Optional] SPG NFT contract address (ask user, defaults to network-specific default)
-        spg_nft_contract_max_minting_fee: [HIDDEN] DO NOT ask user - automatically set from get_spg_nft_contract_minting_fee_and_token()
-        spg_nft_contract_mint_fee_token: [HIDDEN] DO NOT ask user - automatically set from get_spg_nft_contract_minting_fee_and_token()
+        spg_nft_contract_max_minting_fee: [HIDDEN] DO NOT ask user - automatically set from get_spg_nft_minting_token()
+        spg_nft_contract_mint_fee_token: [HIDDEN] DO NOT ask user - automatically set from get_spg_nft_minting_token()
 
     Returns:
         str: Result message with transaction details
@@ -397,7 +397,7 @@ def create_spg_nft_collection(
 
 
 @mcp.tool()
-def get_spg_nft_contract_minting_fee_and_token(spg_nft_contract: str) -> str:
+def get_spg_nft_minting_token(spg_nft_contract: str) -> str:
     """
     Get the minting fee required by an SPG NFT contract.
 
@@ -408,7 +408,7 @@ def get_spg_nft_contract_minting_fee_and_token(spg_nft_contract: str) -> str:
         str: Information about the minting fee
     """
     try:
-        fee_info = story_service.get_spg_nft_contract_minting_fee_and_token(spg_nft_contract)
+        fee_info = story_service.get_spg_nft_minting_token(spg_nft_contract)
         
         fee_amount = fee_info['mint_fee']
         fee_token = fee_info['mint_fee_token']
