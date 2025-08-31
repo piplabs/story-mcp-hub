@@ -7,10 +7,14 @@ This server provides MCP (Model Context Protocol) tools for interacting with Sto
 - Get license terms
 - Mint and register IP Asset with PIL Terms
 - Mint license tokens
-- Send $IP to a wallet
-- Upload image to ipfs via Pinata [External]
-- Upload ip and nft metadata via Pinata [External]
+- Attach license terms to IP assets
+- Register derivative IP assets
+- Upload image to IPFS via Pinata [External]
+- Upload IP and NFT metadata via Pinata [External]
 - Create SPG NFT collections
+- Royalty management (pay and claim)
+- Dispute management
+- WIP (Wrapped IP) token operations
 
 ## Environment Configuration
 
@@ -28,13 +32,49 @@ Environment variables:
 
 ## Available Tools
 
+### Core IP Management Tools
 1. `get_license_terms`: Retrieve license terms for a specific ID
 2. `mint_license_tokens`: Mint license tokens for a specific IP and license terms
-3. `send_ip`: Send IP tokens to a specified address using native token transfer
-4. `upload_image_to_ipfs`: Upload an image to IPFS and return the URI
-5. `create_ip_metadata`: Create NFT metadata for a specific image URI
-6. `mint_and_register_ip_with_terms`: Mint and register an IP with terms
-7. `create_spg_nft_collection`: Create a new SPG NFT collection for minting and registering IP assets
+3. `mint_and_register_ip_with_terms`: Mint and register an IP with terms
+4. `register`: Register an IP asset
+5. `attach_license_terms`: Attach license terms to an IP asset
+6. `register_derivative`: Register a derivative IP asset
+
+### IPFS Tools (only available if PINATA_JWT is configured)
+7. `upload_image_to_ipfs`: Upload an image to IPFS and return the URI
+8. `create_ip_metadata`: Create NFT metadata for a specific image URI
+
+### SPG NFT Collection Tools
+9. `create_spg_nft_collection`: Create a new SPG NFT collection for minting and registering IP assets
+10. `get_spg_nft_minting_token`: Get the minting fee for an SPG NFT contract
+
+### Royalty Management Tools
+11. `pay_royalty_on_behalf`: Pay royalty on behalf of an IP
+12. `claim_all_revenue`: Claim all revenue from an IP (claimer defaults to current account)
+
+### Dispute Management Tools
+13. `raise_dispute`: Raise a dispute on an IP with specific tags
+
+### WIP (Wrapped IP) Token Tools
+14. `deposit_wip`: Wrap IP to WIP and deposit to wallet
+15. `transfer_wip`: Transfer WIP to a recipient
+
+## 🤖 Agent Workflow Requirements
+
+**IMPORTANT**: Some tools have mandatory multi-step workflows that must be followed in sequence. These are marked with "🤖 AGENT WORKFLOW" in their docstrings.
+
+### Required Workflows:
+
+**For `mint_license_tokens`:**
+1. First call `get_license_minting_fee(license_terms_id)`
+2. Then call `get_license_revenue_share(license_terms_id)`
+3. Present costs to user for confirmation
+4. Only then call `mint_license_tokens` with the retrieved values
+
+**For `mint_and_register_ip_with_terms` with custom SPG contract:**
+1. If using a custom `spg_nft_contract`, first call `get_spg_nft_minting_token(spg_nft_contract)`
+2. Present SPG contract fee information to user for confirmation
+3. Only then call `mint_and_register_ip_with_terms` with the retrieved values
 
 ### Example `mint_and_register_ip_with_terms`
 

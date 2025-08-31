@@ -62,10 +62,7 @@ def mock_story_service():
         "licenseTokenIds": [1, 2, 3]
     })
     
-    mock_service.send_ip = Mock(return_value={
-        "txHash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-        "txReceipt": {"status": 1}
-    })
+
     
     mock_service.mint_and_register_ip_with_terms = Mock(return_value={
         "txHash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
@@ -123,6 +120,15 @@ def mock_story_service():
         "disputeId": 1
     })
     
+    mock_service.predict_minting_license_fee = Mock(return_value={
+        "currency": "0x1514000000000000000000000000000000000000",
+        "amount": 1000000000000000000
+    })
+    
+    mock_service.transfer_wip = Mock(return_value={
+        "tx_hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+    })
+    
     # Ensure the network property is set
     mock_service.network = "aeneid"
     
@@ -156,10 +162,7 @@ def story_server(mock_story_service):
             )
             return f"Successfully minted license tokens:\nTransaction Hash: {result['txHash']}\nLicense Token IDs: {result['licenseTokenIds']}"
         
-        def send_ip(self, to_address, amount):
-            result = self.story_service.send_ip(to_address, amount)
-            return f"Successfully sent {amount} IP to {to_address}. Transaction hash: {result['txHash']}"
-        
+
         def mint_and_register_ip_with_terms(self, commercial_rev_share, derivatives_allowed, 
                                           registration_metadata=None, recipient=None, 
                                           spg_nft_contract=None):
@@ -258,6 +261,34 @@ def story_server(mock_story_service):
                 attributes=attributes
             )
             return f"Successfully created and uploaded metadata:\nNFT Metadata URI: {result['nft_metadata_uri']}\nIP Metadata URI: {result['ip_metadata_uri']}"
+        
+        def predict_minting_license_fee(self, licensor_ip_id, license_terms_id, amount, license_template=None, receiver=None, tx_options=None):
+            result = self.story_service.predict_minting_license_fee(
+                licensor_ip_id=licensor_ip_id,
+                license_terms_id=license_terms_id,
+                amount=amount,
+                license_template=license_template,
+                receiver=receiver,
+                tx_options=tx_options
+            )
+            return {
+                "currency_token": result.get("currency"),
+                "token_amount": result.get("amount")
+            }
+        
+        def transfer_wip(self, to, amount):
+            result = self.story_service.transfer_wip(to=to, amount=amount)
+            amount_in_ip = 0.5  # Mock conversion for testing
+            return (
+                f"✅ Successfully transferred WIP tokens! Here's what happened:\n\n"
+                f"📋 Your Transfer Details:\n"
+                f"   • Recipient: {to}\n"
+                f"   • Amount: {amount} wei ({amount_in_ip} WIP)\n"
+                f"   • Token Type: WIP (Wrapped IP)\n\n"
+                f"🔗 Transaction Details:\n"
+                f"   • Transaction Hash: {result.get('tx_hash')}\n\n"
+                f"🎉 Transfer initiated successfully!"
+            )
     
     # Return an instance of the mock server
     return MockServer(mock_story_service)
@@ -300,22 +331,6 @@ def test_mint_license_tokens(story_server, mock_story_service):
     assert isinstance(response, str)
     assert "Successfully minted license tokens" in response
     assert "Transaction Hash" in response
-
-def test_send_ip(story_server, mock_story_service):
-    """Test the send_ip endpoint"""
-    # Call the endpoint
-    to_address = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-    amount = 1.5
-    
-    response = story_server.send_ip(to_address=to_address, amount=amount)
-    
-    # Verify service was called correctly
-    mock_story_service.send_ip.assert_called_once_with(to_address, amount)
-    
-    # Verify response contains expected data
-    assert isinstance(response, str)
-    assert f"Successfully sent {amount} IP to {to_address}" in response
-    assert "Transaction hash" in response
 
 def test_mint_and_register_ip_with_terms(story_server, mock_story_service):
     """Test the mint_and_register_ip_with_terms endpoint"""
@@ -474,3 +489,102 @@ def test_pay_royalty_on_behalf(story_server, mock_story_service):
     assert isinstance(response, str)
     assert "Successfully paid royalty" in response
     assert "Transaction hash" in response
+
+def test_predict_minting_license_fee(story_server, mock_story_service):
+    """Test the predict_minting_license_fee endpoint"""
+    # Call the endpoint with basic parameters
+    licensor_ip_id = SAMPLE_IP_ID
+    license_terms_id = 42
+    amount = 5
+    
+    response = story_server.predict_minting_license_fee(
+        licensor_ip_id=licensor_ip_id,
+        license_terms_id=license_terms_id,
+        amount=amount
+    )
+    
+    # Verify service was called correctly
+    mock_story_service.predict_minting_license_fee.assert_called_once_with(
+        licensor_ip_id=licensor_ip_id,
+        license_terms_id=license_terms_id,
+        amount=amount,
+        license_template=None,
+        receiver=None,
+        tx_options=None
+    )
+    
+    # Verify response contains expected data
+    assert isinstance(response, dict)
+    assert "currency_token" in response
+    assert "token_amount" in response
+    
+    # Test with all parameters
+    mock_story_service.reset_mock()
+    custom_template = "0x1234567890123456789012345678901234567890"
+    custom_receiver = "0xabcd1234abcd1234abcd1234abcd1234abcd1234"
+    tx_options = {"gasLimit": 200000}
+    
+    response = story_server.predict_minting_license_fee(
+        licensor_ip_id=licensor_ip_id,
+        license_terms_id=license_terms_id,
+        amount=amount,
+        license_template=custom_template,
+        receiver=custom_receiver,
+        tx_options=tx_options
+    )
+    
+    # Verify service was called with all parameters
+    mock_story_service.predict_minting_license_fee.assert_called_once_with(
+        licensor_ip_id=licensor_ip_id,
+        license_terms_id=license_terms_id,
+        amount=amount,
+        license_template=custom_template,
+        receiver=custom_receiver,
+        tx_options=tx_options
+    )
+    
+    # Verify response structure
+    assert isinstance(response, dict)
+    assert "currency_token" in response
+    assert "token_amount" in response
+
+def test_transfer_wip(story_server, mock_story_service):
+    """Test the transfer_wip endpoint - the replacement for send_ip functionality"""
+    # Call the endpoint with basic parameters
+    to_address = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    amount = 500000000000000000  # 0.5 WIP in wei
+    
+    response = story_server.transfer_wip(to=to_address, amount=amount)
+    
+    # Verify service was called correctly
+    mock_story_service.transfer_wip.assert_called_once_with(
+        to=to_address,
+        amount=amount
+    )
+    
+    # Verify response contains expected data
+    assert isinstance(response, str)
+    assert "✅ Successfully transferred WIP tokens" in response
+    assert f"Recipient: {to_address}" in response
+    assert f"Amount: {amount} wei" in response
+    assert "Transaction Hash:" in response
+    assert "Transfer initiated successfully" in response
+    
+    # Test with different amounts and addresses
+    mock_story_service.reset_mock()
+    large_amount = 2000000000000000000  # 2 WIP in wei
+    different_address = "0xabcd1234abcd1234abcd1234abcd1234abcd1234"
+    
+    response = story_server.transfer_wip(to=different_address, amount=large_amount)
+    
+    # Verify service was called with new parameters
+    mock_story_service.transfer_wip.assert_called_once_with(
+        to=different_address,
+        amount=large_amount
+    )
+    
+    # Verify response format is consistent
+    assert isinstance(response, str)
+    assert "✅ Successfully transferred WIP tokens" in response
+    assert f"Recipient: {different_address}" in response
+    assert f"Amount: {large_amount} wei" in response

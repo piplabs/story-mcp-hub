@@ -97,10 +97,12 @@ class AddressResolver:
 
     def _is_ethereum_address(self, value: str) -> bool:
         """Check if a string is a valid Ethereum address."""
-        if not isinstance(value, str):
-            return False
+        # Accept either '0x' or '0X' prefix (EIP-55 allows upper-case)
         return (
-            value.startswith("0x") and len(value) == 42 and self.web3.is_address(value)
+            isinstance(value, str)
+            and value[:2].lower() == "0x"
+            and len(value) == 42
+            and self.web3.is_address(value)
         )
 
     def _resolve_ens_domain(self, domain: str) -> Optional[str]:

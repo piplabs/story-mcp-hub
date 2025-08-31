@@ -6,7 +6,7 @@ This document provides instructions for running tests in the Story MCP Hub proje
 
 - Python 3.12+
 - Uv package installer (`pip install uv`)
-- Dependencies installed: `uv pip install -e ".[test]"`
+- Dependencies installed: `uv sync --extra test`
 
 ## Environment Setup
 

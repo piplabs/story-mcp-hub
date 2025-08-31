@@ -44,7 +44,7 @@ graph TD
             style Story SDK Tools fill:#F0FFF0,stroke:#90EE90,stroke-width:2px,rx:10,ry:10
             IPFSTools["IPFS Tools<br>upload_image_to_ipfs<br>create_ip_metadata"]
             style IPFSTools fill:#E0FFFF,stroke:#5F9EA0,stroke-width:2px,rx:8,ry:8
-            IPTools["IP Management Tools<br>mint_and_register_ip_with_terms<br>get_license_terms,<br>mint_license_tokens,<br>send_ip,<br>create_spg_nft_collection"]
+            IPTools["IP Management Tools<br>mint_and_register_ip_with_terms<br>get_license_terms,<br>mint_license_tokens,<br>register,<br>attach_license_terms,<br>register_derivative,<br>create_spg_nft_collection"]
             style IPTools fill:#E0FFFF,stroke:#5F9EA0,stroke-width:2px,rx:8,ry:8
         end
     end
@@ -94,10 +94,19 @@ Provides tools for interacting with Story Protocol's Python SDK.
 
 - `get_license_terms`: Retrieve license terms for a specific ID
 - `mint_license_tokens`: Mint license tokens for a specific IP and license terms
-- `send_ip`: Send IP tokens to a specified address using native token transfer
-- `upload_image_to_ipfs`: Upload an image to IPFS and return the URI
-- `create_ip_metadata`: Create NFT metadata for a specific image URI
 - `mint_and_register_ip_with_terms`: Mint and register an IP with terms
+- `register`: Register an IP asset
+- `attach_license_terms`: Attach license terms to an IP asset
+- `register_derivative`: Register a derivative IP asset
+- `upload_image_to_ipfs`: Upload an image to IPFS and return the URI (requires PINATA_JWT)
+- `create_ip_metadata`: Create NFT metadata for a specific image URI (requires PINATA_JWT)
+- `create_spg_nft_collection`: Create a new SPG NFT collection
+- `get_spg_nft_minting_token`: Get the minting fee for an SPG NFT contract
+- `pay_royalty_on_behalf`: Pay royalty on behalf of an IP
+- `claim_all_revenue`: Claim all revenue from an IP
+- `raise_dispute`: Raise a dispute on an IP
+- `deposit_wip`: Wrap IP to WIP and deposit to wallet
+- `transfer_wip`: Transfer WIP to a recipient
 
 ## Setup
 
@@ -279,7 +288,7 @@ The project includes a test runner script (`run_tests.py`) that handles environm
 1. Install test dependencies:
 
 ```bash
-uv pip install -e ".[test]"
+uv sync --extra test
 ```
 
 2. Run all tests:

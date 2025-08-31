@@ -125,9 +125,9 @@ def mock_nft_client():
     """Create a mock NFT client with predefined responses"""
     mock_nft_client = Mock()
     
-    mock_nft_client.createNFTCollection = Mock(return_value={
-        "txHash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-        "nftContract": "0xabcdef1234567890abcdef1234567890abcdef1234"
+    mock_nft_client.create_nft_collection = Mock(return_value={
+        "tx_hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        "nft_contract": "0xabcdef1234567890abcdef1234567890abcdef1234"
     })
     
     return mock_nft_client

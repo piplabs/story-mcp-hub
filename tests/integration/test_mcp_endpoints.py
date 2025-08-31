@@ -84,10 +84,15 @@ class TestMCPIntegration:
             "licenseTokenIds": [1, 2, 3]
         }
         
-        # Mock send_ip
-        mock_service.send_ip.return_value = {
-            "txHash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-            "txReceipt": {"status": 1}
+        # Mock transfer_wip
+        mock_service.transfer_wip.return_value = {
+            "tx_hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+        }
+        
+        # Mock predict_minting_license_fee
+        mock_service.predict_minting_license_fee.return_value = {
+            "currencyToken": "0x1514000000000000000000000000000000000000",
+            "tokenAmount": 1000000000000000000
         }
         
         return mock_service
@@ -119,10 +124,20 @@ class TestMCPIntegration:
             return f"License Terms {license_terms_id}: {result}"
         
         @mcp.tool()
-        def send_ip(to_address: str, amount: float) -> str:
-            """Send IP tokens to an address"""
-            mock_story_service.send_ip(to_address, amount)
-            return f"Successfully sent {amount} IP to {to_address}"
+        def transfer_wip(to: str, amount: int) -> str:
+            """Transfer WIP tokens to an address"""
+            result = mock_story_service.transfer_wip(to=to, amount=amount)
+            return f"✅ Successfully transferred {amount} WIP to {to}! Transaction hash: {result['tx_hash']}"
+        
+        @mcp.tool()
+        def predict_minting_license_fee(licensor_ip_id: str, license_terms_id: int, amount: int) -> str:
+            """Predict the minting license fee for given parameters"""
+            result = mock_story_service.predict_minting_license_fee(
+                licensor_ip_id=licensor_ip_id,
+                license_terms_id=license_terms_id,
+                amount=amount
+            )
+            return f"Minting License Fee: {result['tokenAmount']} wei of {result['currencyToken']}"
         
         return mcp
     
@@ -171,23 +186,52 @@ class TestMCPIntegration:
         assert result["derivativesAllowed"] is True
         assert result["royaltyPolicy"] == "0x1234567890123456789012345678901234567890"
     
-    def test_send_ip(self, mock_story_service):
-        """Test the send_ip endpoint"""
+    def test_transfer_wip(self, mock_story_service):
+        """Test the transfer_wip endpoint - replacement for send_ip functionality"""
         # Setup the mock service to return a success result
-        mock_service_result = {"txHash": "0x1234", "txReceipt": {"status": 1}}
-        mock_story_service.send_ip.return_value = mock_service_result
+        mock_service_result = {"tx_hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"}
+        mock_story_service.transfer_wip.return_value = mock_service_result
         
         # Call service directly
         to_address = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-        amount = 1.5
-        result = mock_story_service.send_ip(to_address, amount)
+        amount = 500000000000000000  # 0.5 WIP in wei
+        result = mock_story_service.transfer_wip(to=to_address, amount=amount)
         
-        # Verify service was called
-        mock_story_service.send_ip.assert_called_once_with(to_address, amount)
+        # Verify service was called with correct parameters
+        mock_story_service.transfer_wip.assert_called_once_with(to=to_address, amount=amount)
         
         # Verify result
-        assert result["txHash"] == "0x1234"
-        assert result["txReceipt"]["status"] == 1
+        assert result["tx_hash"] == "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+    
+    def test_predict_minting_license_fee(self, mock_story_service):
+        """Test the predict_minting_license_fee endpoint"""
+        # Setup the mock service to return fee prediction result
+        mock_service_result = {
+            "currencyToken": "0x1514000000000000000000000000000000000000",
+            "tokenAmount": 1000000000000000000
+        }
+        mock_story_service.predict_minting_license_fee.return_value = mock_service_result
+        
+        # Call service directly
+        licensor_ip_id = "0x2e778894d11b5308e4153f094e190496c1e0609652c19f8b87e5176484b9a56e"
+        license_terms_id = 1
+        amount = 5
+        result = mock_story_service.predict_minting_license_fee(
+            licensor_ip_id=licensor_ip_id,
+            license_terms_id=license_terms_id,
+            amount=amount
+        )
+        
+        # Verify service was called with correct parameters
+        mock_story_service.predict_minting_license_fee.assert_called_once_with(
+            licensor_ip_id=licensor_ip_id,
+            license_terms_id=license_terms_id,
+            amount=amount
+        )
+        
+        # Verify result
+        assert result["currencyToken"] == "0x1514000000000000000000000000000000000000"
+        assert result["tokenAmount"] == 1000000000000000000
     
     def test_get_transaction_history(self, mock_storyscan_service):
         """Test the get_transaction_history service method"""

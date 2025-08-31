@@ -11,7 +11,7 @@ dependencies = [
     
     # Web3 and Story Protocol SDK
     "web3",
-    "story-protocol-python-sdk @ git+https://github.com/storyprotocol/python-sdk.git",
+    "story-protocol-python-sdk",
     
     # HTTP and API dependencies
     "httpx>=0.28.1",
@@ -24,6 +24,9 @@ dependencies = [
     "multiformats>=0.3.1.post4",
     "py-multicodec>=0.2.1",
     "py-multiformats-cid>=0.4.4",
+    
+    # Data validation
+    "pydantic>=2.0.0",
     
     # Utilities
     "loguru>=0.7.3",
@@ -47,3 +50,8 @@ filterwarnings = [
     "ignore::DeprecationWarning",
 ]
 addopts = "--cov=. --cov-report=term-missing"
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=6.0.0",
+]
