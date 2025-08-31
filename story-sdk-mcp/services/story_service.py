@@ -87,9 +87,7 @@ class StoryService:
 
     def get_license_terms(self, license_terms_id: int) -> str:
         """Get the license terms for a specific ID."""
-        logger.info("love youuuuuuuuuuuuuuuuuu")
         response = self.client.License.get_license_terms(license_terms_id)
-        logger.info("love you 2")
 
         if not response:
             raise ValueError(f"No license terms found for ID {license_terms_id}")
