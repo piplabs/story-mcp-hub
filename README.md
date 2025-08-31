@@ -30,7 +30,7 @@ graph TD
 
         subgraph "StoryScan Tools"
             style StoryScan Tools fill:#F0FFFF,stroke:#5F9EA0,stroke-width:2px,rx:10,ry:10
-            StoryscanToolset["Balance & Stats<br>check_balance,<br>get_address_overview,<br>get_transactions,<br>interpret_transaction,<br>get_token_holdings,<br>get_nft_holdings,<br>get_stats"]
+            StoryscanToolset["Blockchain Data<br>get_transactions,<br>get_address_overview,<br>get_token_holdings,<br>get_nft_holdings,<br>get_stats,<br>interpret_transaction"]
             style StoryscanToolset fill:#E0FFFF,stroke:#5F9EA0,stroke-width:2px,rx:8,ry:8
         end
     end
@@ -42,10 +42,14 @@ graph TD
 
         subgraph "Story SDK Tools"
             style Story SDK Tools fill:#F0FFF0,stroke:#90EE90,stroke-width:2px,rx:10,ry:10
-            IPFSTools["IPFS Tools<br>upload_image_to_ipfs<br>create_ip_metadata"]
+            IPFSTools["IPFS & Metadata<br>upload_image_to_ipfs<br>create_ip_metadata"]
             style IPFSTools fill:#E0FFFF,stroke:#5F9EA0,stroke-width:2px,rx:8,ry:8
-            IPTools["IP Management Tools<br>mint_and_register_ip_with_terms<br>get_license_terms,<br>mint_license_tokens,<br>register,<br>attach_license_terms,<br>register_derivative,<br>create_spg_nft_collection"]
+            LicenseTools["License Management<br>get_license_terms,<br>mint_license_tokens,<br>get_license_minting_fee,<br>predict_minting_license_fee"]
+            style LicenseTools fill:#E0FFFF,stroke:#5F9EA0,stroke-width:2px,rx:8,ry:8
+            IPTools["IP & NFT Management<br>register, attach_license_terms,<br>mint_and_register_ip_with_terms,<br>create_spg_nft_collection"]
             style IPTools fill:#E0FFFF,stroke:#5F9EA0,stroke-width:2px,rx:8,ry:8
+            TokenTools["Token & Revenue<br>deposit_wip, transfer_wip,<br>pay_royalty_on_behalf,<br>claim_all_revenue,<br>raise_dispute"]
+            style TokenTools fill:#E0FFFF,stroke:#5F9EA0,stroke-width:2px,rx:8,ry:8
         end
     end
 
@@ -63,11 +67,15 @@ graph TD
     Agent <--MCP Protocol--> StoryscanService
     StoryscanService --> StoryscanToolset
     StoryService --> IPFSTools
+    StoryService --> LicenseTools
     StoryService --> IPTools
+    StoryService --> TokenTools
 
     StoryscanToolset <--API Calls--> StoryScan
     IPFSTools <--API Calls--> IPFS
+    LicenseTools <--RPC Calls--> Blockchain
     IPTools <--RPC Calls--> Blockchain
+    TokenTools <--RPC Calls--> Blockchain
 ```
 
 ## MCP Servers
@@ -78,13 +86,12 @@ Provides tools for querying blockchain data, including address balances, transac
 
 **Tools:**
 
-- `check_balance`: Check the balance of an address
 - `get_transactions`: Get recent transactions for an address
 - `get_stats`: Get current blockchain statistics
-- `get_address_overview`: Get a comprehensive overview of an address
-- `get_token_holdings`: Get all ERC-20 token holdings for an address
-- `get_nft_holdings`: Get all NFT holdings for an address
-- `interpret_transaction`: Get a human-readable interpretation of a transaction
+- `get_address_overview`: Get a comprehensive overview of an address including balance, token info, and blockchain activity
+- `get_token_holdings`: Get all ERC-20 token holdings for an address, including detailed token information and balances
+- `get_nft_holdings`: Get all NFT holdings for an address, including collection information and individual token metadata
+- `interpret_transaction`: Get a human-readable interpretation of a blockchain transaction
 
 ### Story SDK MCP Server
 
@@ -92,21 +99,38 @@ Provides tools for interacting with Story Protocol's Python SDK.
 
 **Tools:**
 
+**IPFS & Metadata Tools (requires PINATA_JWT):**
+- `upload_image_to_ipfs`: Upload an image to IPFS using Pinata API and return the URI
+- `create_ip_metadata`: Create and upload both NFT and IP metadata to IPFS
+
+**License Management Tools:**
 - `get_license_terms`: Retrieve license terms for a specific ID
-- `mint_license_tokens`: Mint license tokens for a specific IP and license terms
-- `mint_and_register_ip_with_terms`: Mint and register an IP with terms
-- `register`: Register an IP asset
+- `get_license_minting_fee`: Get the minting fee for a specific license terms ID
+- `get_license_revenue_share`: Get the commercial revenue share percentage for a specific license terms ID
+- `mint_license_tokens`: Mint license tokens for a given IP and license terms (auto-approves WIP tokens)
+- `predict_minting_license_fee`: Pre-compute the minting license fee for given IP, license terms and amount
+
+**IP Asset Management Tools:**
+- `register`: Register an NFT as IP, creating a corresponding IP record
 - `attach_license_terms`: Attach license terms to an IP asset
-- `register_derivative`: Register a derivative IP asset
-- `upload_image_to_ipfs`: Upload an image to IPFS and return the URI (requires PINATA_JWT)
-- `create_ip_metadata`: Create NFT metadata for a specific image URI (requires PINATA_JWT)
-- `create_spg_nft_collection`: Create a new SPG NFT collection
-- `get_spg_nft_minting_token`: Get the minting fee for an SPG NFT contract
-- `pay_royalty_on_behalf`: Pay royalty on behalf of an IP
-- `claim_all_revenue`: Claim all revenue from an IP
-- `raise_dispute`: Raise a dispute on an IP
+- `mint_and_register_ip_with_terms`: Mint and register an IP with terms
+
+**NFT Collection Tools:**
+- `create_spg_nft_collection`: Create a new SPG NFT collection that can be used for minting and registering IP assets
+- `get_spg_nft_minting_token`: Get the minting fee required by an SPG NFT contract
+
+**Revenue & Royalty Tools:**
+- `pay_royalty_on_behalf`: Pay royalties to a receiver IP asset on behalf of a payer IP asset (auto-approves tokens)
+- `claim_all_revenue`: Claim all revenue from child IPs of an ancestor IP with optional auto-transfer
+
+**Dispute Tools:**
+- `raise_dispute`: Raise a dispute against an IP asset (auto-approves WIP bond tokens)
+
+**Token Management Tools:**
 - `deposit_wip`: Wrap IP to WIP and deposit to wallet
-- `transfer_wip`: Transfer WIP to a recipient
+- `transfer_wip`: Transfer WIP tokens to a recipient
+- `get_erc20_token_balance`: Get the balance of any ERC20 token for an account
+- `mint_test_erc20_tokens`: Mint test ERC20 tokens if the contract has a public mint/faucet function
 
 ## Setup
 
