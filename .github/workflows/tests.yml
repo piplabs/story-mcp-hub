@@ -9,6 +9,14 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    env:
+      TESTING: "1"
+      WALLET_PRIVATE_KEY: "test_private_key_for_testing_only_0123456789abcdef"
+      RPC_PROVIDER_URL: "https://aeneid.storyrpc.io"
+      PINATA_JWT: "test_jwt_token_for_testing"
+      STORYSCAN_API_ENDPOINT: "https://aeneid.storyscan.io/api"
+      STORY_API_KEY: "test_api_key_for_testing"
     
     steps:
     - uses: actions/checkout@v4
