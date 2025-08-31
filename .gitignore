@@ -1,5 +1,7 @@
+# Environment files
 .env
-__pycache__
+.env.test
+
 # OS generated files
 .DS_Store
 
@@ -9,15 +11,59 @@ __pycache__/
 *$py.class
 *.so
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
+.installed.cfg
 *.egg
 
-# Test files
-test*.py
+# Test files (but not our regular unit tests)
+# We want to keep unit test files like test_*.py
+# But ignore temporary test scripts
+test.py
+temp_test*.py
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+coverage.xml
+*.cover
 
 # Log files
 *.log
 
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
 # IDE settings
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# IPython
+profile_default/
+ipython_config.py
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json

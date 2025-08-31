@@ -44,7 +44,7 @@ graph TD
             style Story SDK Tools fill:#F0FFF0,stroke:#90EE90,stroke-width:2px,rx:10,ry:10
             IPFSTools["IPFS Tools<br>upload_image_to_ipfs<br>create_ip_metadata"]
             style IPFSTools fill:#E0FFFF,stroke:#5F9EA0,stroke-width:2px,rx:8,ry:8
-            IPTools["IP Management Tools<br>mint_and_register_ip_with_terms<br>get_license_terms,<br>mint_license_tokens,<br>send_ip,<br>create_spg_nft_collection"]
+            IPTools["IP Management Tools<br>mint_and_register_ip_with_terms<br>get_license_terms,<br>mint_license_tokens,<br>register,<br>attach_license_terms,<br>register_derivative,<br>create_spg_nft_collection"]
             style IPTools fill:#E0FFFF,stroke:#5F9EA0,stroke-width:2px,rx:8,ry:8
         end
     end
@@ -94,10 +94,19 @@ Provides tools for interacting with Story Protocol's Python SDK.
 
 - `get_license_terms`: Retrieve license terms for a specific ID
 - `mint_license_tokens`: Mint license tokens for a specific IP and license terms
-- `send_ip`: Send IP tokens to a specified address using native token transfer
-- `upload_image_to_ipfs`: Upload an image to IPFS and return the URI
-- `create_ip_metadata`: Create NFT metadata for a specific image URI
 - `mint_and_register_ip_with_terms`: Mint and register an IP with terms
+- `register`: Register an IP asset
+- `attach_license_terms`: Attach license terms to an IP asset
+- `register_derivative`: Register a derivative IP asset
+- `upload_image_to_ipfs`: Upload an image to IPFS and return the URI (requires PINATA_JWT)
+- `create_ip_metadata`: Create NFT metadata for a specific image URI (requires PINATA_JWT)
+- `create_spg_nft_collection`: Create a new SPG NFT collection
+- `get_spg_nft_minting_token`: Get the minting fee for an SPG NFT contract
+- `pay_royalty_on_behalf`: Pay royalty on behalf of an IP
+- `claim_all_revenue`: Claim all revenue from an IP
+- `raise_dispute`: Raise a dispute on an IP
+- `deposit_wip`: Wrap IP to WIP and deposit to wallet
+- `transfer_wip`: Transfer WIP to a recipient
 
 ## Setup
 
@@ -240,12 +249,7 @@ code ~/Library/Application\ Support/Claude/claude_desktop_config.json
         "~/path/to/story-mcp-hub/storyscan-mcp",
         "run",
         "server.py"
-      ],
-      // Add environment variables for the server
-      "env": {
-        "STORY_API_KEY": "your_story_api_key_here",
-        "STORYSCAN_API_ENDPOINT": "your_story_api_endpoint_here"
-      }
+      ]
     },
     "story-sdk-mcp": {
       "command": "uv",
@@ -254,13 +258,7 @@ code ~/Library/Application\ Support/Claude/claude_desktop_config.json
         "~/path/to/story-mcp-hub/story-sdk-mcp",
         "run",
         "server.py"
-      ],
-      // Add environment variables for the server
-      "env": {
-        "WALLET_PRIVATE_KEY": "your_private_key_here",
-        "RPC_PROVIDER_URL": "your_rpc_provider_url_here",
-        "PINATA_JWT": "your_pinata_jwt_here"
-      }
+      ]
     }
   }
 }
@@ -281,7 +279,71 @@ To add a new MCP server to the hub:
 3. Add any necessary dependencies to the root `pyproject.toml`
 4. Update this README with information about your server
 
-## Troubleshooting
+## Testing
+
+### Running Tests
+
+The project includes a test runner script (`run_tests.py`) that handles environment setup and test execution. To run tests:
+
+1. Install test dependencies:
+
+```bash
+uv sync --extra test
+```
+
+2. Run all tests:
+
+```bash
+uv run python run_tests.py
+```
+
+3. Run specific test categories:
+
+```bash
+# Run unit tests only
+uv run python run_tests.py -t tests/unit/
+
+# Run integration tests only
+uv run python run_tests.py -t tests/integration/
+
+# Run with verbose output
+uv run python run_tests.py -v
+```
+
+4. Run individual test files:
+
+```bash
+uv run python run_tests.py -t tests/unit/story_sdk_mcp/test_story_service.py
+```
+
+5. Get help on available options:
+
+```bash
+uv run python run_tests.py --help
+```
+
+### Environment Setup for Testing
+
+The tests use a `.env.test` file with mock credentials for testing. This file is automatically loaded by the test runner.
+
+To set up your test environment:
+
+1. Copy the example file to create your own `.env.test`:
+
+```bash
+cp .env.test.example .env.test
+```
+
+2. Edit the `.env.test` file to include your test credentials:
+
+```bash
+# For example, update the private key for blockchain interactions
+nano .env.test  # or use your preferred text editor
+```
+
+For more detailed information about testing, see the [testing guide](TESTING.md).
+
+### Troubleshooting
 
 If you encounter issues:
 

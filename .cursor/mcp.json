@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "storyscan-mcp": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "storyscan-mcp",
+        "run",
+        "server.py"
+      ]
+    },
+    "story-sdk-mcp": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "story-sdk-mcp",
+        "run",
+        "server.py"
+      ]
+    }
+  }
+}

@@ -23,7 +23,7 @@ mcp = FastMCP()
 api_endpoint = os.environ.get("STORYSCAN_API_ENDPOINT")
 if not api_endpoint:
     print("STORYSCAN_API_ENDPOINT environment variable is required")
-    api_endpoint = "https://www.storyscan.xyz/api"  # Default fallback
+    api_endpoint = "https://www.storyscan.io/api"  # Default fallback
 
 # Initialize StoryScan service with SSL verification disabled
 story_service = StoryscanService(api_endpoint, disable_ssl_verification=True)
@@ -82,7 +82,8 @@ def get_transactions(address: str, limit: int = 10):
 
             # Get transaction status
             status = tx.get("status", "Unknown")
-            status_text = "✅ Success" if status.lower() == "ok" else f"❌ {status}"
+            status_text = "✅ Success" if status.lower(
+            ) == "ok" else f"❌ {status}"
 
             # Add result information if available
             if tx.get("result") and tx["result"] != "success":
@@ -377,12 +378,14 @@ def get_address_overview(address: str):
 
         # Add public tags if available
         if overview["public_tags"]:
-            tags = ", ".join([tag["display_name"] for tag in overview["public_tags"]])
+            tags = ", ".join([tag["display_name"]
+                             for tag in overview["public_tags"]])
             result += f"\n\nPublic Tags: {tags}"
 
         # Add private tags if available
         if overview["private_tags"]:
-            tags = ", ".join([tag["display_name"] for tag in overview["private_tags"]])
+            tags = ", ".join([tag["display_name"]
+                             for tag in overview["private_tags"]])
             result += f"\nPrivate Tags: {tags}"
 
         # Add watchlist names if available
@@ -407,7 +410,8 @@ def get_address_overview(address: str):
             ):
                 try:
                     decimals = int(token["decimals"])
-                    total_supply = format_token_balance(token["total_supply"], decimals)
+                    total_supply = format_token_balance(
+                        token["total_supply"], decimals)
                     result += f"\nTotal Supply: {total_supply} {token['symbol']}"
                 except (ValueError, TypeError):
                     result += f"\nTotal Supply: {token['total_supply']}"
@@ -478,7 +482,8 @@ def get_token_holdings(address: str):
             usd_display = ""
             if token.get("exchange_rate"):
                 try:
-                    usd_amount = float(formatted_value) * float(token["exchange_rate"])
+                    usd_amount = float(formatted_value) * \
+                        float(token["exchange_rate"])
                     usd_display = f" (${usd_amount:.2f} USD)"
                 except (ValueError, TypeError):
                     pass
