@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/piplabs-story-mcp-hub-badge.png)](https://mseep.ai/app/piplabs-story-mcp-hub)
+
 # Story MCP Hub
 
 This repository serves as a central hub for Story Protocol's Model Context Protocol (MCP) servers. It provides a unified environment for running and managing various MCP services that enable AI agents to interact with Story Protocol's ecosystem.
